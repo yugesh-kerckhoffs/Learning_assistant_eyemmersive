@@ -139,15 +139,15 @@ async function processRecoveryToken() {
 // Floating Banner System
 const bannerMessages = [
   {
-    text: '🚀 App in development! Found a bug? Report it to <a href="mailto:info@sendelightgifts.com">info@sendelightgifts.com</a>',
+    text: '🚀 App in development! Found a bug? Report it to <a href="mailto:info@eyemmersive.us">info@eyemmersive.us</a>',
     icon: "🔔",
   },
   {
-    text: '💡 Have ideas for new features? Email us at <a href="mailto:info@sendelightgifts.com">info@sendelightgifts.com</a>',
+    text: '💡 Have ideas for new features? Email us at <a href="mailto:info@eyemmersive.us">info@eyemmersive.us</a>',
     icon: "✨",
   },
   {
-    text: '🎯 Help us improve! Share your feedback at <a href="mailto:info@sendelightgifts.com">info@sendelightgifts.com</a>',
+    text: '🎯 Help us improve! Share your feedback at <a href="mailto:info@eyemmersive.us">info@eyemmersive.us</a>',
     icon: "💬",
   },
 ];
