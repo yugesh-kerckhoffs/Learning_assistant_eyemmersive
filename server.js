@@ -6,6 +6,10 @@ const fs = require("fs");
 require("dotenv").config();
 const { GoogleGenerativeAI } = require("@google/genai");
 const crypto = require("crypto");
+const { Resend } = require("resend");
+const resend = new Resend(process.env.RESEND_API_KEY);
+const { createClient } = require('@supabase/supabase-js');
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -25,6 +29,19 @@ try {
 Your job is to **teach, support, and encourage** them in a way that feels safe, simple, and fun.
 
 ### Rules & Guidelines
+
+**⚠️ CRITICAL SAFETY RULE:**
+If a child reports ANY form of abuse, harm, bullying, or unsafe situation:
+- NEVER minimize their feelings or change the subject
+- Respond with IMMEDIATE empathy and validation
+- Tell them it's NOT their fault
+- Encourage them to tell a trusted adult (parent, teacher, counselor)
+- Reassure them they are brave for speaking up
+- DO NOT suggest fun activities or change topics
+- Keep your focus entirely on their safety and wellbeing
+
+Example response to abuse:
+"I'm so sorry that happened to you. 😔 That's not okay, and it's not your fault. You were very brave to tell me. Please talk to a trusted adult like your parent, teacher, or school counselor right away. They can help keep you safe. You deserve to feel safe and happy. ❤️"
 
 1. **Tone & Language**
     - Always be kind, calm, and supportive 💙.
@@ -128,6 +145,207 @@ const GEMINI_BASE_URL = `https://generativelanguage.googleapis.com/v1beta`;
 // --- Supabase Configuration ---
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+
+// Abuse detection keywords
+const ABUSE_KEYWORDS = [
+  'abuse', 'abused', 'hit me', 'hits me', 'hurt me', 'hurts me',
+  'beat me', 'beats me', 'punch', 'punched', 'kick', 'kicked',
+  'slap', 'slapped', 'scared of', 'afraid of', 'frightened',
+  'bully', 'bullied', 'bullying', 'harass', 'harassed', 'harassment',
+  'touch me', 'touched me', 'inappropriate', 'uncomfortable',
+  'secret', 'don\'t tell', 'nobody knows', 'hurt',
+  'violence', 'violent', 'yell at me', 'yells at me', 'scream at me'
+];
+
+// Function to detect concerning messages
+function detectAbuseKeywords(message) {
+  const lowerMessage = message.toLowerCase();
+  const foundKeywords = ABUSE_KEYWORDS.filter(keyword => 
+    lowerMessage.includes(keyword.toLowerCase())
+  );
+  return foundKeywords.length > 0 ? foundKeywords : null;
+}
+
+// Function to analyze message with AI for abuse detection
+async function analyzeMessageWithAI(message) {
+  try {
+    const analysisPrompt = `You are a child safety expert. Analyze this message from a child and determine if it contains ANY signs of:
+- Physical abuse or violence
+- Emotional abuse or bullying
+- Sexual abuse or inappropriate contact
+- Neglect or unsafe situations
+- Threats or intimidation
+
+Message: "${message}"
+
+Respond with ONLY a JSON object:
+{
+  "is_concerning": true/false,
+  "severity": "low/medium/high",
+  "reason": "brief explanation",
+  "detected_issues": ["list", "of", "issues"]
+}`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: analysisPrompt }] }],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 500,
+          },
+        }),
+      }
+    );
+
+    const data = await response.json();
+    const aiResponse = data.candidates[0].content.parts[0].text;
+    
+    // Try to parse JSON from AI response
+    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('AI analysis error:', error);
+    return null;
+  }
+}
+
+// Function to send safety alert emails
+async function sendSafetyAlerts(userEmail, userName, flaggedMessage, schoolId, teacherId) {
+  try {
+    const emailsToNotify = [userEmail]; // Parent email
+    
+    console.log('📧 Starting email notification process...');
+    console.log('📧 Parent email:', userEmail);
+    console.log('📧 School ID:', schoolId);
+    console.log('📧 Teacher ID:', teacherId);
+
+    // Fetch school and teacher information using Supabase client
+    if (schoolId && teacherId) {
+      // Fetch school data
+      const { data: schoolData, error: schoolError } = await supabase
+        .from('schools')
+        .select('principal_email, counselor_email')
+        .eq('id', schoolId)
+        .single();
+
+      if (schoolError) {
+        console.error('❌ Error fetching school:', schoolError);
+      }
+
+      // Fetch teacher data
+      const { data: teacherData, error: teacherError } = await supabase
+        .from('teachers')
+        .select('teacher_email')
+        .eq('id', teacherId)
+        .single();
+
+      if (teacherError) {
+        console.error('❌ Error fetching teacher:', teacherError);
+      }
+
+      if (schoolData) {
+        console.log('✅ School found:', {
+          principal: schoolData.principal_email,
+          counselor: schoolData.counselor_email
+        });
+        emailsToNotify.push(schoolData.principal_email);
+        emailsToNotify.push(schoolData.counselor_email);
+      }
+
+      if (teacherData) {
+        console.log('✅ Teacher found:', teacherData.teacher_email);
+        emailsToNotify.push(teacherData.teacher_email);
+      }
+    } else {
+      console.log('⚠️ No school/teacher assigned - sending to parent only');
+    }
+    
+    console.log('📧 Total recipients:', emailsToNotify.length);
+    console.log('📧 Sending to:', emailsToNotify);
+
+    // Send emails using Resend
+    const emailPromises = emailsToNotify.map(email => 
+      resend.emails.send({
+        from: 'Safety Alert <onboarding@resend.dev>',
+        to: email,
+        subject: '🚨 URGENT: Child Safety Alert',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 3px solid #ff0000; border-radius: 10px; background: #fff5f5;">
+            <h1 style="color: #d32f2f; text-align: center;">⚠️ CHILD SAFETY ALERT ⚠️</h1>
+            
+            <div style="background: #ffebee; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <h2 style="color: #c62828; margin-top: 0;">Concerning Message Detected</h2>
+              <p><strong>Student:</strong> ${userName}</p>
+              <p><strong>Parent Email:</strong> ${userEmail}</p>
+              <p><strong>Date/Time:</strong> ${new Date().toLocaleString()}</p>
+            </div>
+
+            <div style="background: #fff; padding: 15px; border-left: 4px solid #d32f2f; margin: 20px 0;">
+              <h3 style="color: #d32f2f; margin-top: 0;">Flagged Message:</h3>
+              <p style="font-size: 16px; line-height: 1.6;"><em>"${flaggedMessage}"</em></p>
+            </div>
+
+            <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="color: #1976d2; margin-top: 0;">⚡ Immediate Action Required</h3>
+              <ul style="line-height: 1.8;">
+                <li>Contact the parent/guardian immediately</li>
+                <li>Document this incident</li>
+                <li>Follow your school's child protection protocol</li>
+                <li>If necessary, contact local child protective services</li>
+              </ul>
+            </div>
+
+            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 2px solid #ddd;">
+              <p style="color: #666; font-size: 14px;">
+                This alert was automatically generated by the Learning Assistant AI system.<br>
+                Time is critical - please take immediate action.
+              </p>
+            </div>
+          </div>
+        `
+      })
+    );
+
+    await Promise.all(emailPromises);
+    console.log(`✅ Safety alerts sent to ${emailsToNotify.length} recipients`);
+    
+    return emailsToNotify;
+  } catch (error) {
+    console.error('Error sending safety alerts:', error);
+    return [];
+  }
+}
+
+// Function to log safety alert to database
+async function logSafetyAlert(userId, message, detectionMethod, severity, emailsSent) {
+  try {
+    const { error } = await supabase
+      .from('safety_alerts')
+      .insert({
+        user_id: userId,
+        flagged_message: message,
+        detection_method: detectionMethod,
+        severity_level: severity,
+        emails_sent_to: emailsSent
+      });
+    
+    if (error) {
+      console.error('❌ Error logging to database:', error);
+    } else {
+      console.log('✅ Safety alert logged to database');
+    }
+  } catch (error) {
+    console.error('❌ Exception logging safety alert:', error);
+  }
+}
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.warn("⚠️ SUPABASE_URL or SUPABASE_ANON_KEY is missing in .env file");
@@ -475,6 +693,8 @@ app.post("/api/chat", async (req, res) => {
       socialStoriesMode = false,
       role = "guest",
       sessionToken = null,
+      userId = null,
+      userEmail = null,
     } = req.body;
 
     if (!message || message.trim() === "") {
@@ -638,6 +858,186 @@ I can paint it with words so you can imagine it perfectly! ✨`;
         // Fall through to regular text response
       }
     }
+
+// 🚨 CHILD SAFETY: Check for abuse/concerning content
+    let isConcerning = false;
+    let detectionMethod = '';
+    let severity = 'low';
+    let detectedIssues = [];
+    
+    if (!socialStoriesMode && !isVideoReq && !isImageReq) {
+
+      // 1. Check for abuse keywords
+      const foundKeywords = detectAbuseKeywords(message);
+      if (foundKeywords) {
+        isConcerning = true;
+        detectionMethod = 'keyword';
+        severity = 'medium';
+        detectedIssues = foundKeywords;
+        console.log('⚠️ Abuse keywords detected:', foundKeywords);
+      }
+
+      // 2. AI-based analysis (runs in parallel)
+      const aiAnalysis = await analyzeMessageWithAI(message);
+      if (aiAnalysis && aiAnalysis.is_concerning) {
+        isConcerning = true;
+        detectionMethod = detectionMethod ? 'keyword+ai' : 'ai';
+        severity = aiAnalysis.severity || 'medium';
+        detectedIssues = [...detectedIssues, ...(aiAnalysis.detected_issues || [])];
+        console.log('⚠️ AI detected concerning content:', aiAnalysis.reason);
+      }
+
+      // 3. If concerning content detected, send alerts
+      if (isConcerning) {
+        console.log('🚨 CHILD SAFETY ALERT TRIGGERED');
+        console.log('📋 DEBUG - Received userId:', userId);
+        console.log('📋 DEBUG - Received userEmail:', userEmail);
+        console.log('📋 DEBUG - userId type:', typeof userId);
+        console.log('📋 DEBUG - userEmail type:', typeof userEmail);
+        
+        // Get user info from request
+        if (userId && userEmail) {
+          console.log('✅ User data exists, fetching profile...');
+          try {
+            // Fetch user profile with school and teacher info using Supabase client
+            const { data: userProfile, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', userId)
+              .single();
+            
+            console.log('📋 Profile fetch result:', {
+              found: !!userProfile,
+              error: profileError,
+              profile: userProfile
+            });
+
+            if (profileError) {
+              console.error('❌ Error fetching profile:', profileError);
+            }
+
+            if (userProfile) {
+              console.log('📋 User profile loaded:', {
+                name: userProfile.display_name,
+                school_id: userProfile.school_id,
+                teacher_id: userProfile.assigned_teacher_id
+              });
+              
+              // Send safety alerts
+              const emailsSent = await sendSafetyAlerts(
+                userEmail,
+                userProfile.display_name || 'Student',
+                message,
+                userProfile.school_id,
+                userProfile.assigned_teacher_id
+              );
+
+              // Log to database
+              await logSafetyAlert(
+                userId,
+                message,
+                detectionMethod,
+                severity,
+                emailsSent
+              );
+              
+              console.log('✅ Safety alert completed');
+            } else {
+              console.log('⚠️ No profile found for user - sending basic alert');
+              
+              // Still send alert to parent email even without school info
+              const emailsSent = await sendSafetyAlerts(
+                userEmail,
+                'Student',
+                message,
+                null,
+                null
+              );
+              
+              await logSafetyAlert(
+                userId,
+                message,
+                detectionMethod,
+                severity,
+                emailsSent
+              );
+            }
+          } catch (alertError) {
+            console.error('❌ Error handling safety alert:', alertError);
+            console.error('Error details:', alertError.message);
+          }
+        } else {
+          console.log('⚠️ No user logged in - skipping safety alerts');
+        }
+      }
+    }
+    
+    // Special handling for abuse detection - provide empathetic response
+    if (isConcerning && !socialStoriesMode && !isVideoReq && !isImageReq) {
+      console.log('💙 Providing empathetic response for concerning content');
+      
+      // Override system prompt with abuse-focused empathetic prompt
+      const abuseResponsePrompt = `You are a caring counselor talking to a child who just shared something concerning about abuse, harm, or bullying.
+
+CRITICAL RULES:
+1. Be EXTREMELY empathetic and validating
+2. Tell them it's NOT their fault
+3. Praise them for being brave to speak up
+4. Encourage them to tell a trusted adult (parent, teacher, counselor) RIGHT NOW
+5. Reassure them they deserve to be safe
+6. DO NOT change the subject or suggest fun activities
+7. Keep focus ONLY on their safety and wellbeing
+8. Use gentle, caring language with supportive emojis
+
+The child said: "${message}"
+
+Respond with deep empathy, validation, and clear guidance on getting help from trusted adults.`;
+
+      const messages = [
+        { role: "system", content: abuseResponsePrompt },
+        { role: "user", content: message },
+      ];
+
+      const geminiContents = convertToGeminiFormat(messages);
+
+      try {
+        const response = await fetch(GEMINI_TEXT_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: geminiContents,
+            generationConfig: {
+              temperature: 0.7,
+              topP: 0.9,
+              topK: 40,
+              maxOutputTokens: 500,
+            },
+          }),
+        });
+
+        const data = await response.json();
+        const aiResponse = data.candidates[0].content.parts[0].text;
+
+        return res.json({
+          response: aiResponse,
+          character: "❤️",
+          model: "gemini-2.0-flash-safety-mode",
+          safetyAlertSent: true,
+        });
+      } catch (error) {
+        console.error('Error generating empathetic response:', error);
+        // Fallback response
+        return res.json({
+          response: "I'm so sorry you're going through this. 😔 What happened is not okay, and it's NOT your fault. Please talk to a trusted adult like your parent, teacher, or school counselor right away. They can help keep you safe. You were very brave to tell me. ❤️",
+          character: "❤️",
+          model: "fallback-safety-response",
+          safetyAlertSent: true,
+        });
+      }
+    }
+    
     // Regular text conversation
     const currentPrompt = socialStoriesMode
       ? getSocialStoriesPrompt()
@@ -848,6 +1248,159 @@ app.get("/api/supabase-config", (req, res) => {
     url: SUPABASE_URL,
     anonKey: SUPABASE_ANON_KEY,
   });
+});
+
+// ========================================
+// ADMIN VERIFICATION ENDPOINT
+// ========================================
+app.post("/api/verify-admin", async (req, res) => {
+  try {
+    const { secretKey } = req.body;
+    
+    if (!secretKey) {
+      return res.status(400).json({ error: "Secret key is required" });
+    }
+    
+    // Check if the secret key matches the admin key from environment
+    const adminKey = process.env.ADMIN_SECRET_KEY || "your-default-admin-key-here";
+    
+    if (secretKey === adminKey) {
+      return res.json({ 
+        isAdmin: true, 
+        message: "Admin verified successfully" 
+      });
+    } else {
+      return res.json({ 
+        isAdmin: false, 
+        message: "Invalid admin key" 
+      });
+    }
+  } catch (error) {
+    console.error("❌ Admin verification error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ========================================
+// CONTACT FORM API ENDPOINT
+// ========================================
+app.post("/api/contact", async (req, res) => {
+  try {
+    const { name, email, message } = req.body;
+
+    // Validate inputs
+    if (!name || !email || !message) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: "Invalid email address" });
+    }
+
+    // Send email using Resend
+    const { data, error } = await resend.emails.send({
+      from: "Learning Assistant <onboarding@resend.dev>", // Resend's test email
+      to: ["imyugesh.s@gmail.com"], // Your email
+      subject: `New Contact Form Message from ${name}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            .header {
+              background: linear-gradient(135deg, #4fc3f7, #66bb6a);
+              color: white;
+              padding: 30px;
+              border-radius: 10px 10px 0 0;
+              text-align: center;
+            }
+            .content {
+              background: #f9f9f9;
+              padding: 30px;
+              border-radius: 0 0 10px 10px;
+            }
+            .info-row {
+              margin: 15px 0;
+              padding: 15px;
+              background: white;
+              border-radius: 8px;
+              border-left: 4px solid #4fc3f7;
+            }
+            .label {
+              font-weight: bold;
+              color: #4fc3f7;
+              display: block;
+              margin-bottom: 5px;
+            }
+            .value {
+              color: #333;
+            }
+            .message-box {
+              background: white;
+              padding: 20px;
+              border-radius: 8px;
+              margin-top: 20px;
+              border: 1px solid #e0e0e0;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 30px;
+              color: #666;
+              font-size: 0.9em;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>📧 New Contact Form Submission</h1>
+          </div>
+          <div class="content">
+            <div class="info-row">
+              <span class="label">👤 Name:</span>
+              <span class="value">${name}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">📧 Email:</span>
+              <span class="value">${email}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">📅 Date:</span>
+              <span class="value">${new Date().toLocaleString()}</span>
+            </div>
+            <div class="message-box">
+              <span class="label">💬 Message:</span>
+              <p class="value">${message.replace(/\n/g, '<br>')}</p>
+            </div>
+            <div class="footer">
+              <p>This email was sent from the Learning Assistant contact form.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    });
+
+    if (error) {
+      console.error("❌ Resend error:", error);
+      return res.status(500).json({ error: "Failed to send email" });
+    }
+
+    console.log("✅ Contact email sent successfully:", data);
+    res.json({ success: true, message: "Email sent successfully" });
+  } catch (error) {
+    console.error("❌ Contact form error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // Health check

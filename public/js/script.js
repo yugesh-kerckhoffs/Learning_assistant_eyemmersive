@@ -4,8 +4,666 @@ marked.setOptions({
   headerIds: false,
   mangle: false,
 });
-// Initialize Supabase client
 
+// ========================================
+// LANDING PAGE FUNCTIONS
+// ========================================
+
+// Show/Hide Landing Page
+function showLandingPage() {
+  const landingPage = document.getElementById('landingPage');
+  const mainApp = document.getElementById('mainApp');
+  const signInPage = document.getElementById('signInPage');
+  const signUpPage = document.getElementById('signUpPage');
+  const adminLoginPage = document.getElementById('adminLoginPage');
+  const forgotPasswordPage = document.getElementById('forgotPasswordPage');
+  
+  if (landingPage) landingPage.style.display = 'block';
+  if (mainApp) mainApp.style.display = 'none';
+  if (signInPage) signInPage.style.display = 'none';
+  if (signUpPage) signUpPage.style.display = 'none';
+  if (adminLoginPage) adminLoginPage.style.display = 'none';
+  if (forgotPasswordPage) forgotPasswordPage.style.display = 'none';
+}
+
+function hideLandingPage() {
+  const landingPage = document.getElementById('landingPage');
+  const mainApp = document.getElementById('mainApp');
+  const signInPage = document.getElementById('signInPage');
+  const signUpPage = document.getElementById('signUpPage');
+  const adminLoginPage = document.getElementById('adminLoginPage');
+  const forgotPasswordPage = document.getElementById('forgotPasswordPage');
+  
+  if (landingPage) landingPage.style.display = 'none';
+  if (mainApp) mainApp.style.display = 'block';
+  if (signInPage) signInPage.style.display = 'none';
+  if (signUpPage) signUpPage.style.display = 'none';
+  if (adminLoginPage) adminLoginPage.style.display = 'none';
+  if (forgotPasswordPage) forgotPasswordPage.style.display = 'none';
+}
+
+// Show Auth Modal from Landing Page (redirect to sign up)
+function showAuthModal() {
+  showSignUpPage();
+}
+
+// Smooth Scroll to Section
+function scrollToSection(sectionId) {
+  const section = document.getElementById(sectionId);
+  if (section) {
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+// Mobile Menu Toggle
+function toggleMobileMenu() {
+  const navLinks = document.querySelector('.nav-links');
+  if (navLinks.style.display === 'flex') {
+    navLinks.style.display = 'none';
+  } else {
+    navLinks.style.display = 'flex';
+    navLinks.style.flexDirection = 'column';
+    navLinks.style.position = 'absolute';
+    navLinks.style.top = '70px';
+    navLinks.style.right = '20px';
+    navLinks.style.background = 'rgba(26, 26, 46, 0.98)';
+    navLinks.style.padding = '20px';
+    navLinks.style.borderRadius = '15px';
+    navLinks.style.border = '2px solid rgba(79, 195, 247, 0.3)';
+  }
+}
+
+// Handle Pricing Button Clicks
+function handlePricingClick(plan) {
+  if (plan === 'free') {
+    // Check if user is already logged in
+    if (currentUser) {
+      // User is logged in, take them to main app
+      hideLandingPage();
+      showNotification('Welcome back! 🎉');
+    } else {
+      // User not logged in, show signup page
+      showSignUpPage();
+    }
+  } else if (plan === 'pro') {
+    showNotification('💎 Pro plan coming soon! Stay tuned for unlimited access.');
+  }
+}
+
+// Contact Form Submission
+async function handleContactSubmit(event) {
+  event.preventDefault();
+  
+  const name = document.getElementById('contactName').value.trim();
+  const email = document.getElementById('contactEmail').value.trim();
+  const message = document.getElementById('contactMessage').value.trim();
+  
+  const submitBtn = document.getElementById('contactSubmitBtn');
+  const btnText = document.getElementById('contactBtnText');
+  const btnLoading = document.getElementById('contactBtnLoading');
+  const formMessage = document.getElementById('contactFormMessage');
+  
+  // Validate inputs
+  if (!name || !email || !message) {
+    formMessage.textContent = '❌ Please fill in all fields';
+    formMessage.className = 'form-message error';
+    return;
+  }
+  
+  // Email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    formMessage.textContent = '❌ Please enter a valid email address';
+    formMessage.className = 'form-message error';
+    return;
+  }
+  
+  // Show loading state
+  submitBtn.disabled = true;
+  btnText.style.display = 'none';
+  btnLoading.style.display = 'inline';
+  formMessage.style.display = 'none';
+  
+  try {
+    const response = await fetch('/api/contact', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name, email, message }),
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok) {
+      formMessage.textContent = '✅ Message sent successfully! We\'ll get back to you soon.';
+      formMessage.className = 'form-message success';
+      
+      // Clear form
+      document.getElementById('contactForm').reset();
+    } else {
+      throw new Error(result.error || 'Failed to send message');
+    }
+  } catch (error) {
+    console.error('Contact form error:', error);
+    formMessage.textContent = '❌ Failed to send message. Please try again or email us directly.';
+    formMessage.className = 'form-message error';
+  } finally {
+    // Reset button state
+    submitBtn.disabled = false;
+    btnText.style.display = 'inline';
+    btnLoading.style.display = 'none';
+  }
+}
+
+// Show Terms Modal (reuse existing terms modal)
+function showTermsModal() {
+  const modal = document.getElementById('termsModal');
+  if (modal) {
+    modal.style.display = 'flex';
+  }
+}
+
+// ========================================
+// NEW AUTH PAGES NAVIGATION
+// ========================================
+
+// Show Sign In Page
+function showSignInPage() {
+  document.getElementById('landingPage').style.display = 'none';
+  document.getElementById('signInPage').style.display = 'block';
+  document.getElementById('signUpPage').style.display = 'none';
+  document.getElementById('adminLoginPage').style.display = 'none';
+  document.getElementById('forgotPasswordPage').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'none';
+}
+
+// Show Sign Up Page
+function showSignUpPage() {
+  document.getElementById('landingPage').style.display = 'none';
+  document.getElementById('signInPage').style.display = 'none';
+  document.getElementById('signUpPage').style.display = 'block';
+  document.getElementById('adminLoginPage').style.display = 'none';
+  document.getElementById('forgotPasswordPage').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'none';
+  
+  // Load schools when showing sign up page
+  loadSchoolsForSignupNew();
+}
+
+// Show Admin Login Page
+function showAdminLoginPage() {
+  document.getElementById('landingPage').style.display = 'none';
+  document.getElementById('signInPage').style.display = 'none';
+  document.getElementById('signUpPage').style.display = 'none';
+  document.getElementById('adminLoginPage').style.display = 'block';
+  document.getElementById('forgotPasswordPage').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'none';
+}
+
+// Wrapper functions for compatibility
+function showSignIn() {
+  showSignInPage();
+}
+
+function showSignUp() {
+  showSignUpPage();
+}
+
+function showAdminLogin() {
+  showAdminLoginPage();
+}
+
+// Show Forgot Password Page
+function showForgotPasswordPage() {
+  document.getElementById('landingPage').style.display = 'none';
+  document.getElementById('signInPage').style.display = 'none';
+  document.getElementById('signUpPage').style.display = 'none';
+  document.getElementById('adminLoginPage').style.display = 'none';
+  document.getElementById('forgotPasswordPage').style.display = 'block';
+  document.getElementById('mainApp').style.display = 'none';
+}
+
+// Back to Landing Page
+function backToLanding() {
+  document.getElementById('landingPage').style.display = 'block';
+  document.getElementById('signInPage').style.display = 'none';
+  document.getElementById('signUpPage').style.display = 'none';
+  document.getElementById('adminLoginPage').style.display = 'none';
+  document.getElementById('forgotPasswordPage').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'none';
+  
+  // Clear all form errors
+  document.getElementById('signInErrorNew').textContent = '';
+  document.getElementById('signUpErrorNew').textContent = '';
+  document.getElementById('adminLoginErrorNew').textContent = '';
+  document.getElementById('forgotPasswordErrorNew').textContent = '';
+  document.getElementById('forgotPasswordSuccessNew').textContent = '';
+}
+
+// Password Toggle for New Auth Pages
+function togglePasswordNew(inputId, button) {
+  const input = document.getElementById(inputId);
+  if (input.type === 'password') {
+    input.type = 'text';
+    button.textContent = '🙈';
+  } else {
+    input.type = 'password';
+    button.textContent = '👁️';
+  }
+}
+
+// ========================================
+// NEW SIGN IN HANDLER
+// ========================================
+async function handleSignInNew(event) {
+  event.preventDefault();
+  
+  const email = document.getElementById('signInEmailNew').value.trim();
+  const password = document.getElementById('signInPasswordNew').value;
+  const errorElement = document.getElementById('signInErrorNew');
+  const submitBtn = document.getElementById('signInSubmitBtn');
+  const btnText = document.getElementById('signInBtnText');
+  const btnLoading = document.getElementById('signInBtnLoading');
+  
+  // Clear previous errors
+  errorElement.textContent = '';
+  
+  // Validation
+  if (!email || !password) {
+    errorElement.textContent = '❌ Please fill in all fields';
+    return;
+  }
+  
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    errorElement.textContent = '❌ Please enter a valid email address';
+    return;
+  }
+  
+  // Show loading state
+  submitBtn.disabled = true;
+  btnText.style.display = 'none';
+  btnLoading.style.display = 'inline';
+  
+  try {
+    if (!window.supabaseClient) {
+      throw new Error('Supabase not initialized');
+    }
+    
+    const { data, error } = await window.supabaseClient.auth.signInWithPassword({
+      email: email,
+      password: password,
+    });
+    
+    if (error) throw error;
+    
+    if (data.user) {
+      currentUser = data.user;
+      
+      // Try to fetch user profile
+      const { data: profile, error: profileError } = await window.supabaseClient
+        .from('users')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+      
+      // If profile doesn't exist or there's an error, create a basic profile
+      if (!profile || profileError) {
+        console.log('⚠️ Profile not found or error, using basic profile');
+        currentUserName = data.user.email.split('@')[0]; // Use email username
+        
+        // Try to create profile if table exists
+        try {
+          await window.supabaseClient
+            .from('users')
+            .insert([{
+              id: data.user.id,
+              email: data.user.email,
+              full_name: currentUserName,
+              terms_accepted: false,
+              created_at: new Date().toISOString(),
+            }]);
+          console.log('✅ Created basic profile');
+        } catch (insertError) {
+          console.log('⚠️ Could not create profile, continuing anyway');
+        }
+      } else {
+        currentUserName = profile.full_name || 'Guest';
+        
+        // Check if terms accepted
+        if (!profile.terms_accepted) {
+          document.getElementById('termsModal').style.display = 'flex';
+          document.getElementById('signInPage').style.display = 'none';
+          return;
+        }
+      }
+      
+      // Success - go to main app
+      document.getElementById('signInPage').style.display = 'none';
+      document.getElementById('mainApp').style.display = 'block';
+      showNotification(`Welcome back, ${currentUserName}! 🎉`);
+      
+      // Clear form
+      document.getElementById('signInFormNew').reset();
+    }
+  } catch (error) {
+    console.error('Sign in error:', error);
+    errorElement.textContent = `❌ ${error.message || 'Sign in failed. Please check your credentials.'}`;
+  } finally {
+    submitBtn.disabled = false;
+    btnText.style.display = 'inline';
+    btnLoading.style.display = 'none';
+  }
+}
+
+// ========================================
+// NEW SIGN UP HANDLER
+// ========================================
+async function handleSignUpNew(event) {
+  event.preventDefault();
+  
+  const name = document.getElementById('signUpNameNew').value.trim();
+  const email = document.getElementById('signUpEmailNew').value.trim();
+  const password = document.getElementById('signUpPasswordNew').value;
+  const confirmPassword = document.getElementById('signUpConfirmPasswordNew').value;
+  const schoolId = document.getElementById('signUpSchoolNew').value;
+  const teacherId = document.getElementById('signUpTeacherNew').value;
+  const errorElement = document.getElementById('signUpErrorNew');
+  const submitBtn = document.getElementById('signUpSubmitBtn');
+  const btnText = document.getElementById('signUpBtnText');
+  const btnLoading = document.getElementById('signUpBtnLoading');
+  
+  // Clear previous errors
+  errorElement.textContent = '';
+  
+  // Validation
+  if (!name || !email || !password || !confirmPassword) {
+    errorElement.textContent = '❌ Please fill in all required fields';
+    return;
+  }
+  
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    errorElement.textContent = '❌ Please enter a valid email address';
+    return;
+  }
+  
+  if (password.length < 6) {
+    errorElement.textContent = '❌ Password must be at least 6 characters long';
+    return;
+  }
+  
+  if (password !== confirmPassword) {
+    errorElement.textContent = '❌ Passwords do not match';
+    return;
+  }
+  
+  // Show loading state
+  submitBtn.disabled = true;
+  btnText.style.display = 'none';
+  btnLoading.style.display = 'inline';
+  
+  try {
+    if (!window.supabaseClient) {
+      throw new Error('Supabase not initialized');
+    }
+    
+    // Sign up user
+    const { data, error } = await window.supabaseClient.auth.signUp({
+      email: email,
+      password: password,
+    });
+    
+    if (error) throw error;
+    
+    if (data.user) {
+      currentUser = data.user;
+      currentUserName = name;
+      
+      // Try to create user profile
+      try {
+        const { error: profileError } = await window.supabaseClient
+          .from('users')
+          .insert([
+            {
+              id: data.user.id,
+              email: email,
+              full_name: name,
+              school_id: schoolId || null,
+              teacher_id: teacherId || null,
+              terms_accepted: false,
+              created_at: new Date().toISOString(),
+            },
+          ]);
+        
+        if (profileError) {
+          console.error('⚠️ Profile creation error:', profileError);
+          console.log('Continuing without profile - user can still use the app');
+        }
+      } catch (insertError) {
+        console.log('⚠️ Could not create profile, continuing anyway');
+      }
+      
+      // Check if terms modal exists
+      const termsModal = document.getElementById('termsModal');
+      if (termsModal) {
+        // Show terms modal
+        termsModal.style.display = 'flex';
+        document.getElementById('signUpPage').style.display = 'none';
+        showNotification('✅ Account created! Please accept the terms to continue.');
+      } else {
+        // No terms modal, go directly to app
+        document.getElementById('signUpPage').style.display = 'none';
+        document.getElementById('mainApp').style.display = 'block';
+        showNotification('✅ Account created successfully! Welcome! 🎉');
+      }
+      
+      // Clear form
+      document.getElementById('signUpFormNew').reset();
+    }
+  } catch (error) {
+    console.error('Sign up error:', error);
+    errorElement.textContent = `❌ ${error.message || 'Sign up failed. Please try again.'}`;
+  } finally {
+    submitBtn.disabled = false;
+    btnText.style.display = 'inline';
+    btnLoading.style.display = 'none';
+  }
+}
+
+// ========================================
+// NEW ADMIN LOGIN HANDLER
+// ========================================
+async function handleAdminLoginNew(event) {
+  event.preventDefault();
+  
+  const secretKey = document.getElementById('adminSecretKeyNew').value.trim();
+  const errorElement = document.getElementById('adminLoginErrorNew');
+  const submitBtn = document.getElementById('adminLoginSubmitBtn');
+  const btnText = document.getElementById('adminLoginBtnText');
+  const btnLoading = document.getElementById('adminLoginBtnLoading');
+  
+  // Clear previous errors
+  errorElement.textContent = '';
+  
+  if (!secretKey) {
+    errorElement.textContent = '❌ Please enter the admin secret key';
+    return;
+  }
+  
+  // Show loading state
+  submitBtn.disabled = true;
+  btnText.style.display = 'none';
+  btnLoading.style.display = 'inline';
+  
+  try {
+    const response = await fetch('/api/verify-admin', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ secretKey }),
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok && result.isAdmin) {
+      currentUser = { isAdmin: true, email: 'admin@system' };
+      currentUserName = 'Admin';
+      
+      // Success - go to main app
+      document.getElementById('adminLoginPage').style.display = 'none';
+      document.getElementById('mainApp').style.display = 'block';
+      showNotification('✅ Admin access granted! 🎬');
+      
+      // Clear form
+      document.getElementById('adminLoginFormNew').reset();
+    } else {
+      errorElement.textContent = '❌ Invalid admin secret key';
+    }
+  } catch (error) {
+    console.error('Admin login error:', error);
+    errorElement.textContent = '❌ Verification failed. Please try again.';
+  } finally {
+    submitBtn.disabled = false;
+    btnText.style.display = 'inline';
+    btnLoading.style.display = 'none';
+  }
+}
+
+// ========================================
+// NEW FORGOT PASSWORD HANDLER
+// ========================================
+async function handleForgotPasswordNew(event) {
+  event.preventDefault();
+  
+  const email = document.getElementById('forgotPasswordEmailNew').value.trim();
+  const errorElement = document.getElementById('forgotPasswordErrorNew');
+  const successElement = document.getElementById('forgotPasswordSuccessNew');
+  const submitBtn = document.getElementById('forgotPasswordSubmitBtn');
+  const btnText = document.getElementById('forgotPasswordBtnText');
+  const btnLoading = document.getElementById('forgotPasswordBtnLoading');
+  
+  // Clear previous messages
+  errorElement.textContent = '';
+  successElement.textContent = '';
+  
+  if (!email) {
+    errorElement.textContent = '❌ Please enter your email address';
+    return;
+  }
+  
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    errorElement.textContent = '❌ Please enter a valid email address';
+    return;
+  }
+  
+  // Show loading state
+  submitBtn.disabled = true;
+  btnText.style.display = 'none';
+  btnLoading.style.display = 'inline';
+  
+  try {
+    if (!window.supabaseClient) {
+      throw new Error('Supabase not initialized');
+    }
+    
+    const { error } = await window.supabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin,
+    });
+    
+    if (error) throw error;
+    
+    successElement.textContent = '✅ Password reset link sent! Check your email inbox.';
+    document.getElementById('forgotPasswordFormNew').reset();
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    errorElement.textContent = `❌ ${error.message || 'Failed to send reset link. Please try again.'}`;
+  } finally {
+    submitBtn.disabled = false;
+    btnText.style.display = 'inline';
+    btnLoading.style.display = 'none';
+  }
+}
+
+// ========================================
+// LOAD SCHOOLS FOR NEW SIGNUP
+// ========================================
+async function loadSchoolsForSignupNew() {
+  if (!window.supabaseClient) {
+    console.log('⏳ Waiting for Supabase to initialize...');
+    setTimeout(loadSchoolsForSignupNew, 500);
+    return;
+  }
+
+  try {
+    const { data: schools, error } = await window.supabaseClient
+      .from('schools')
+      .select('id, school_name')
+      .order('school_name');
+
+    if (error) throw error;
+
+    const schoolSelect = document.getElementById('signUpSchoolNew');
+    schoolSelect.innerHTML = '<option value="">🏫 Select your school</option>';
+
+    if (schools && schools.length > 0) {
+      schools.forEach((school) => {
+        const option = document.createElement('option');
+        option.value = school.id;
+        option.textContent = school.school_name;
+        schoolSelect.appendChild(option);
+      });
+    }
+  } catch (error) {
+    console.error('Error loading schools:', error);
+  }
+}
+
+// ========================================
+// LOAD TEACHERS FOR SCHOOL (NEW)
+// ========================================
+async function loadTeachersForSchoolNew(schoolId) {
+  const teacherSelect = document.getElementById('signUpTeacherNew');
+  const teacherGroup = document.getElementById('teacherGroupNew');
+  
+  if (!schoolId) {
+    teacherGroup.style.display = 'none';
+    teacherSelect.innerHTML = '<option value="">👨‍🏫 Select your teacher</option>';
+    return;
+  }
+
+  try {
+    const { data: teachers, error } = await window.supabaseClient
+      .from('teachers')
+      .select('id, teacher_name')
+      .eq('school_id', schoolId)
+      .order('teacher_name');
+
+    if (error) throw error;
+
+    teacherSelect.innerHTML = '<option value="">👨‍🏫 Select your teacher</option>';
+
+    if (teachers && teachers.length > 0) {
+      teachers.forEach((teacher) => {
+        const option = document.createElement('option');
+        option.value = teacher.id;
+        option.textContent = teacher.teacher_name;
+        teacherSelect.appendChild(option);
+      });
+      teacherGroup.style.display = 'block';
+    } else {
+      teacherGroup.style.display = 'none';
+    }
+  } catch (error) {
+    console.error('Error loading teachers:', error);
+    teacherGroup.style.display = 'none';
+  }
+}
+// Initialize Supabase client
+window.speechSynthesis.onvoiceschanged = () => {};
 window.supabaseClient = null;
 
 // User data
@@ -82,6 +740,77 @@ async function initializeSupabase() {
   // Normal session check for regular logins
   checkExistingSession();
 })();
+
+// Load schools for signup dropdown
+async function loadSchoolsForSignup() {
+  if (!window.supabaseClient) {
+    console.log('⏳ Waiting for Supabase to initialize...');
+    setTimeout(loadSchoolsForSignup, 500);
+    return;
+  }
+
+  try {
+    const { data: schools, error } = await window.supabaseClient
+      .from('schools')
+      .select('id, school_name')
+      .order('school_name');
+
+    if (error) throw error;
+
+    const schoolSelect = document.getElementById('signUpSchool');
+    if (!schoolSelect) return;
+
+    // Clear existing options except the first one
+    schoolSelect.innerHTML = '<option value="">🏫 Select Your School (Optional)</option>';
+
+    schools.forEach(school => {
+      const option = document.createElement('option');
+      option.value = school.id;
+      option.textContent = school.school_name;
+      schoolSelect.appendChild(option);
+    });
+
+    console.log('✅ Loaded', schools.length, 'schools');
+  } catch (error) {
+    console.error('Error loading schools:', error);
+  }
+}
+
+// Load teachers when school is selected
+async function loadTeachersForSchool(schoolId) {
+  const teacherSelect = document.getElementById('signUpTeacher');
+  if (!teacherSelect) return;
+
+  if (!schoolId) {
+    teacherSelect.style.display = 'none';
+    teacherSelect.innerHTML = '<option value="">👨‍🏫 Select Your Teacher</option>';
+    return;
+  }
+
+  try {
+    const { data: teachers, error } = await window.supabaseClient
+      .from('teachers')
+      .select('id, teacher_name, teacher_email')
+      .eq('school_id', schoolId)
+      .order('teacher_name');
+
+    if (error) throw error;
+
+    teacherSelect.innerHTML = '<option value="">👨‍🏫 Select Your Teacher</option>';
+
+    teachers.forEach(teacher => {
+      const option = document.createElement('option');
+      option.value = teacher.id;
+      option.textContent = `${teacher.teacher_name} (${teacher.teacher_email})`;
+      teacherSelect.appendChild(option);
+    });
+
+    teacherSelect.style.display = 'block';
+    console.log('✅ Loaded', teachers.length, 'teachers for school');
+  } catch (error) {
+    console.error('Error loading teachers:', error);
+  }
+}
 
 async function processRecoveryToken() {
   const hash = window.location.hash;
@@ -474,7 +1203,7 @@ function checkLevelProgress() {
 }
 
 async function triggerLevelUp() {
-  showNotification(`🎉 LEVEL UP! You're now Level ${userLevel}! 🎊`);
+  //showNotification(`🎉 LEVEL UP! You're now Level ${userLevel}! 🎊`);
 
   // Save level to Supabase if user is logged in
   if (currentUser && window.supabaseClient) {
@@ -888,215 +1617,17 @@ const colorsData = {
 };
 // Authentication functions
 function showAdminLogin() {
-  document.querySelector(".auth-buttons").style.display = "none";
-  document.getElementById("adminLoginForm").style.display = "block";
-  document.getElementById("secretKeyInput").focus();
+  showAdminLoginPage();
 }
 
 function hideAdminLogin() {
-  document.querySelector(".auth-buttons").style.display = "flex";
-  document.getElementById("adminLoginForm").style.display = "none";
-  document.getElementById("authError").textContent = "";
-  document.getElementById("secretKeyInput").value = "";
+  backToLanding();
 }
 
 function handleAdminKeyPress(event) {
   if (event.key === "Enter") {
     verifyAdminKey();
   }
-}
-
-async function verifyAdminKey() {
-  const secretKey = document.getElementById("secretKeyInput").value.trim();
-  const errorElement = document.getElementById("authError");
-
-  if (!secretKey) {
-    errorElement.textContent = "⚠️ Please enter the secret key";
-    return;
-  }
-
-  try {
-    const response = await fetch("/api/authenticate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ secretKey }),
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      userRole = "admin";
-      sessionToken = data.sessionToken;
-      localStorage.setItem("userRole", "admin");
-      localStorage.setItem("sessionToken", sessionToken);
-      closeAuthModal();
-      showNotification("🎉 Admin login successful! Full access granted.");
-    } else {
-      errorElement.textContent = "❌ Invalid secret key. Please try again.";
-      document.getElementById("secretKeyInput").value = "";
-    }
-  } catch (error) {
-    console.error("Authentication error:", error);
-    errorElement.textContent = "⚠️ Connection error. Please try again.";
-  }
-}
-
-// Show Sign In Form
-function showSignIn() {
-  document.getElementById("authMainButtons").style.display = "none";
-  document.getElementById("signInForm").style.display = "block";
-  document.getElementById("signInEmail").focus();
-  document.getElementById("signInError").textContent = "";
-}
-
-// Hide Sign In Form
-function hideSignIn() {
-  document.getElementById("authMainButtons").style.display = "flex";
-  document.getElementById("signInForm").style.display = "none";
-  document.getElementById("signInEmail").value = "";
-  document.getElementById("signInPassword").value = "";
-  document.getElementById("signInError").textContent = "";
-}
-
-// Show Sign Up Form
-function showSignUp() {
-  document.getElementById("authMainButtons").style.display = "none";
-  document.getElementById("signUpForm").style.display = "block";
-  document.getElementById("signUpName").focus();
-  document.getElementById("signUpError").textContent = "";
-}
-
-// Hide Sign Up Form
-function hideSignUp() {
-  document.getElementById("authMainButtons").style.display = "flex";
-  document.getElementById("signUpForm").style.display = "none";
-  document.getElementById("signUpName").value = "";
-  document.getElementById("signUpEmail").value = "";
-  document.getElementById("signUpPassword").value = "";
-  document.getElementById("signUpConfirmPassword").value = "";
-  document.getElementById("signUpError").textContent = "";
-}
-
-// Handle Sign In
-async function handleSignIn() {
-  const email = document.getElementById("signInEmail").value.trim();
-  const password = document.getElementById("signInPassword").value;
-  const errorElement = document.getElementById("signInError");
-
-  if (!email || !password) {
-    errorElement.textContent = "⚠️ Please fill in all fields";
-    return;
-  }
-
-  try {
-    const { data, error } = await window.supabaseClient.auth.signInWithPassword(
-      {
-        email: email,
-        password: password,
-      }
-    );
-
-    if (error) {
-      errorElement.textContent = `❌ ${error.message}`;
-      return;
-    }
-
-    // Success! Get user's name and level from profile
-    const { data: profile } = await window.supabaseClient
-      .from("profiles")
-      .select("display_name, user_level, session_start_time")
-      .eq("id", data.user.id)
-      .single();
-
-    currentUser = data.user;
-    currentUserName = profile ? profile.display_name : "Friend";
-
-    // Load user's saved level
-    if (profile && profile.user_level) {
-      userLevel = profile.user_level;
-      sessionStartTime = profile.session_start_time || Date.now();
-      updateLevelDisplay();
-      updateProgressBar();
-    }
-    userRole = "user";
-    sessionToken = data.session.access_token;
-
-    closeAuthModal();
-    showNotification(
-      `🎉 Welcome back, ${currentUserName}! You're at Level ${userLevel}!`
-    );
-  } catch (error) {
-    console.error("Sign in error:", error);
-    errorElement.textContent = "⚠️ Connection error. Please try again.";
-  }
-}
-
-// Handle Sign Up
-async function handleSignUp() {
-  const name = document.getElementById("signUpName").value.trim();
-  const email = document.getElementById("signUpEmail").value.trim();
-  const password = document.getElementById("signUpPassword").value;
-  const confirmPassword = document.getElementById(
-    "signUpConfirmPassword"
-  ).value;
-  const errorElement = document.getElementById("signUpError");
-
-  if (!name || !email || !password || !confirmPassword) {
-    errorElement.textContent = "⚠️ Please fill in all fields";
-    return;
-  }
-
-  if (password !== confirmPassword) {
-    errorElement.textContent = "❌ Passwords don't match";
-    return;
-  }
-
-  if (password.length < 6) {
-    errorElement.textContent = "⚠️ Password must be at least 6 characters";
-    return;
-  }
-
-  try {
-    const { data, error } = await window.supabaseClient.auth.signUp({
-      email: email,
-      password: password,
-      options: {
-        data: {
-          display_name: name,
-        },
-      },
-    });
-
-    if (error) {
-      errorElement.textContent = `❌ ${error.message}`;
-      return;
-    }
-
-    // Success!
-    currentUser = data.user;
-    currentUserName = name;
-    userRole = "user";
-    sessionToken = data.session ? data.session.access_token : null;
-
-    closeAuthModal();
-    showNotification(
-      `🎉 Welcome, ${currentUserName}! Your account is created!`
-    );
-  } catch (error) {
-    console.error("Sign up error:", error);
-    errorElement.textContent = "⚠️ Connection error. Please try again.";
-  }
-}
-
-function loginAsGuest() {
-  userRole = "guest";
-  sessionToken = null;
-  localStorage.setItem("userRole", "guest");
-  localStorage.removeItem("sessionToken");
-  closeAuthModal();
-  showNotification("👤 Welcome, Guest! You can chat and generate images.");
 }
 
 function closeAuthModal() {
@@ -1121,120 +1652,243 @@ async function logout() {
   localStorage.removeItem("sessionToken");
   location.reload();
 }
+// ========================================
+// Terms of Service Functions
+// ========================================
+
+async function checkTermsAcceptance() {
+  if (userRole !== "user" || !currentUser) {
+    return;
+  }
+
+  try {
+    // Check database for terms acceptance
+    const { data: profile, error } = await window.supabaseClient
+      .from("profiles")
+      .select("terms_accepted")
+      .eq("id", currentUser.id)
+      .single();
+
+    if (error) {
+      console.error("Error checking terms:", error);
+      return;
+    }
+
+    // If terms_accepted is NULL or false, show the modal
+    if (profile.terms_accepted !== true) {
+      console.log("📜 User needs to accept terms");
+      showTermsModal();
+    }
+  } catch (error) {
+    console.error("Error in checkTermsAcceptance:", error);
+  }
+}
+
+function showTermsModal() {
+  const termsModal = document.getElementById("termsModal");
+  const authModal = document.getElementById("authModal");
+
+  if (authModal) {
+    authModal.style.display = "none";
+  }
+
+  // Hide main app content until terms accepted
+  const container = document.querySelector(".container");
+  if (container) {
+    container.style.display = "none";
+  }
+
+  termsModal.style.display = "flex";
+  termsModal.style.opacity = "0";
+
+  setTimeout(() => {
+    termsModal.style.opacity = "1";
+  }, 100);
+
+  document.getElementById("termsCheckbox").checked = false;
+  document.getElementById("acceptTermsBtn").disabled = true;
+
+  const termsContent = document.querySelector(".terms-content");
+  if (termsContent) {
+    termsContent.scrollTop = 0;
+  }
+}
+
+function hideTermsModal() {
+  const termsModal = document.getElementById("termsModal");
+  termsModal.style.opacity = "0";
+  setTimeout(() => {
+    termsModal.style.display = "none";
+    
+    // Show main app content after accepting
+    const container = document.querySelector(".container");
+    if (container) {
+      container.style.display = "block";
+    }
+  }, 300);
+}
+
+function handleTermsCheckbox() {
+  const checkbox = document.getElementById("termsCheckbox");
+  const acceptBtn = document.getElementById("acceptTermsBtn");
+
+  if (checkbox.checked) {
+    acceptBtn.disabled = false;
+    acceptBtn.style.cursor = "pointer";
+  } else {
+    acceptBtn.disabled = true;
+    acceptBtn.style.cursor = "not-allowed";
+  }
+}
+
+async function acceptTerms() {
+  const checkbox = document.getElementById("termsCheckbox");
+
+  if (!checkbox.checked) {
+    showNotification("⚠️ Please check the box to accept the terms");
+    return;
+  }
+
+  if (!currentUser) {
+    showNotification("❌ Error: User not authenticated");
+    return;
+  }
+
+  try {
+    // Save to database
+    const { error } = await window.supabaseClient
+      .from("profiles")
+      .update({
+        terms_accepted: true,
+        terms_accepted_at: new Date().toISOString(),
+      })
+      .eq("id", currentUser.id);
+
+    if (error) {
+      console.error("Error saving terms acceptance:", error);
+      showNotification("❌ Error saving acceptance. Please try again.");
+      return;
+    }
+
+    console.log("✅ Terms accepted and saved to database");
+
+    hideTermsModal();
+    showNotification("✅ Terms accepted! Welcome to the app!");
+    
+    // Load user's level and progress if available
+    if (window.supabaseClient) {
+      try {
+        const { data: profile } = await window.supabaseClient
+          .from("profiles")
+          .select("user_level, session_start_time")
+          .eq("id", currentUser.id)
+          .single();
+
+        if (profile && profile.user_level) {
+          userLevel = profile.user_level;
+          sessionStartTime = profile.session_start_time || Date.now();
+          updateLevelDisplay();
+          updateProgressBar();
+        }
+      } catch (err) {
+        console.log("Could not load user progress:", err);
+      }
+    }
+  } catch (error) {
+    console.error("Error accepting terms:", error);
+    showNotification("❌ Error saving acceptance. Please try again.");
+  }
+}
+
+async function declineTerms() {
+  const confirmDecline = confirm(
+    "⚠️ You must accept the Terms of Service to use this app.\n\n" +
+    "If you decline, you will be logged out.\n\n" +
+    "Are you sure you want to decline?"
+  );
+
+  if (confirmDecline) {
+    showNotification("👋 Terms declined. Logging out...");
+
+    setTimeout(async () => {
+      // Just logout - don't delete anything
+      await logout();
+    }, 1500);
+  }
+}
 
 async function checkExistingSession() {
-  // Wait for Supabase to initialize
   if (!window.supabaseClient) {
-    await initializeSupabase();
-  }
-
-  // DON'T handle password reset here - it's handled in initialization
-  const hash = window.location.hash;
-  if (hash && hash.includes("type=recovery")) {
-    console.log("⏭️ Skipping session check - password reset in progress");
+    console.log("⏳ Waiting for Supabase to initialize...");
+    setTimeout(checkExistingSession, 500);
     return;
   }
 
-  const savedRole = localStorage.getItem("userRole");
-  if (savedRole === "guest") {
-    console.log("✅ Guest session found - continuing as guest");
-    userRole = "guest";
-    sessionToken = null;
-    currentUserName = "Guest";
-    closeAuthModal();
-    showNotification(`👤 Welcome back, Guest!`);
-    return;
-  }
+  try {
+    const {
+      data: { session },
+      error,
+    } = await window.supabaseClient.auth.getSession();
 
-  // Check if user has an active Supabase session
-  if (window.supabaseClient) {
-    try {
-      const {
-        data: { session },
-        error,
-      } = await window.supabaseClient.auth.getSession();
+    if (error) {
+      console.error("❌ Session check error:", error);
+      showLandingPage();
+      return;
+    }
 
-      if (error) {
-        console.error("Session check error:", error);
+        if (session && session.user) {
+      console.log("✅ Active session found:", session.user.email);
+      currentUser = session.user;
+
+      // Try to fetch user profile
+      const { data: profile, error: profileError } =
+        await window.supabaseClient
+          .from("users")
+          .select("*")
+          .eq("id", session.user.id)
+          .single();
+
+      // Handle profile not found or error
+      if (!profile || profileError) {
+        console.log("⚠️ Profile not found, using session data");
+        currentUserName = session.user.email.split('@')[0];
+        
+        // Still allow user to access the app even without profile
+        hideLandingPage();
+        showNotification(`Welcome back! 🎉`);
+        return;
       }
+      
+      currentUserName = profile.full_name || "Guest";
+      console.log("👤 User profile loaded:", currentUserName);
 
-      if (session) {
-        // User is logged in with Supabase
-        currentUser = session.user;
-        userRole = "user";
-        sessionToken = session.access_token;
-
-        // Get user's name and level from profile
-        const { data: profile, error: profileError } =
-          await window.supabaseClient
-            .from("profiles")
-            .select("display_name, user_level, session_start_time")
-            .eq("id", session.user.id)
-            .single();
-
-        if (profileError) {
-          console.error("Profile fetch error:", profileError);
-          currentUserName = "Friend";
+      // Check if terms accepted
+      if (!profile.terms_accepted) {
+        console.log("📋 Terms not accepted, showing modal");
+        const termsModal = document.getElementById("termsModal");
+        if (termsModal) {
+          termsModal.style.display = "flex";
         } else {
-          currentUserName = profile ? profile.display_name : "Friend";
-
-          // Load user's saved level and progress
-          if (profile && profile.user_level) {
-            userLevel = profile.user_level;
-            sessionStartTime = profile.session_start_time || Date.now();
-            updateLevelDisplay();
-            updateProgressBar();
-          }
+          // No terms modal, just continue to app
+          hideLandingPage();
         }
-
-        closeAuthModal();
-        showNotification(
-          `✅ Welcome back, ${currentUserName}! You're at Level ${userLevel}!`
-        );
         return;
       }
-    } catch (error) {
-      console.error("Session verification error:", error);
+
+      // Load schools for signup
+      loadSchoolsForSignup();
+
+      // Hide landing page and show main app
+      hideLandingPage();
+      showNotification(`Welcome back, ${currentUserName}! 🎉`);
+    } else {
+      console.log("ℹ️ No active session - showing landing page");
+      showLandingPage();
     }
+  } catch (error) {
+    console.error("❌ Session check failed:", error);
+    showLandingPage();
   }
-
-  // Check for old admin session
-  const savedToken = localStorage.getItem("sessionToken");
-
-  if (savedRole === "admin" && savedToken) {
-    try {
-      const response = await fetch("/api/verify-session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          role: savedRole,
-          sessionToken: savedToken,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.valid) {
-        userRole = savedRole;
-        sessionToken = savedToken;
-        closeAuthModal();
-        showNotification(`✅ Welcome back, Admin!`);
-        return;
-      }
-    } catch (error) {
-      console.error("Admin session verification error:", error);
-    }
-  }
-
-  // Show auth modal if no valid session
-  const authModal = document.getElementById("authModal");
-  authModal.style.opacity = "0";
-  authModal.style.display = "flex";
-  setTimeout(() => {
-    authModal.style.opacity = "1";
-  }, 100);
 }
 // COLORS & SHAPES MODE FUNCTIONS
 function enterColorsShapesMode() {
@@ -1692,20 +2346,51 @@ function stopCurrentSpeech() {
 function speakText(text, messageId) {
   if (!voiceEnabled || !("speechSynthesis" in window)) return;
   if (messageId !== lastMessageId) return;
+
   stopCurrentSpeech();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.8;
-  utterance.pitch = 1;
-  utterance.volume = currentVolume;
+  window.speechSynthesis.cancel();
+
+  // 🔇 Remove emojis completely
+  const cleanText = text.replace(
+    /([\u2700-\u27BF]|[\uE000-\uF8FF]|[\uD83C-\uDBFF\uDC00-\uDFFF])/g,
+    ""
+  );
+
+  const utterance = new SpeechSynthesisUtterance(cleanText);
+
+  const voices = window.speechSynthesis.getVoices();
+
+  // 🎯 PRIORITY LIST — BEST → WORST (Windows)
+  const preferredVoice =
+    voices.find(v => v.name === "Google US English") ||
+    voices.find(v => v.name === "Microsoft Aria Online (Natural) - English (United States)") ||
+    voices.find(v => v.name === "Microsoft Jenny Online (Natural) - English (United States)") ||
+    voices.find(v => v.name === "Microsoft Guy Online (Natural) - English (United States)") ||
+    voices.find(v => v.lang === "en-US") ||
+    voices[0];
+
+  if (preferredVoice) {
+    utterance.voice = preferredVoice;
+  }
+
+  // 🧘‍♀️ PERFECT CALM SETTINGS (tested values)
+  utterance.rate = 0.78;    // slower, clearer
+  utterance.pitch = 0.85;   // removes sharp robotic tone
+  utterance.volume = Math.min(currentVolume, 0.9);
+
   utterance.onend = () => {
     currentUtterance = null;
   };
+
   utterance.onerror = () => {
     currentUtterance = null;
   };
+
   currentUtterance = utterance;
-  speechSynthesis.speak(utterance);
+  window.speechSynthesis.speak(utterance);
 }
+
+
 
 function updateVolume() {
   currentVolume = document.getElementById("volume").value / 100;
@@ -1771,6 +2456,8 @@ async function sendMessage() {
         conversationHistory: conversationHistory,
         role: userRole,
         sessionToken: sessionToken,
+        userId: currentUser ? currentUser.id : null,
+        userEmail: currentUser ? currentUser.email : null,
       }),
     });
 
@@ -3551,5 +4238,13 @@ window.addEventListener("beforeunload", function () {
 document.addEventListener("visibilitychange", function () {
   if (document.hidden) {
     // Optionally pause sounds when tab is hidden
+  }
+});
+
+// Terms checkbox event listener
+document.addEventListener("DOMContentLoaded", function () {
+  const termsCheckbox = document.getElementById("termsCheckbox");
+  if (termsCheckbox) {
+    termsCheckbox.addEventListener("change", handleTermsCheckbox);
   }
 });
