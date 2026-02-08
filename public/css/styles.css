@@ -11,6 +11,15 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
 }
+.hero-logo {
+  justify-content: center;
+  display: flex;
+  margin-top: 20px;
+  margin-bottom: 20px;
+  margin-left: 15%;
+  width: 200px;
+  height: auto;
+}
 /* Floating Notification Banner */
 .floating-banner {
   position: fixed;
