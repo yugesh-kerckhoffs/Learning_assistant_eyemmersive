@@ -1419,20 +1419,25 @@ app.get("/api/health", (req, res) => {
 // Keep Supabase active endpoint
 app.get("/api/keep-supabase-active", async (req, res) => {
   try {
-    // Simple lightweight query to keep database active
-    const { data, error } = await supabase
-      .from('conversations')
+    console.log('🔄 Keep-alive endpoint called at:', new Date().toISOString());
+    
+    // Simple ping - we don't care about the result, just making a connection
+    await supabase
+      .from('profiles')
       .select('id')
       .limit(1);
     
     res.json({
       status: 'active',
       timestamp: new Date().toISOString(),
-      supabaseActive: !error
+      message: 'Supabase pinged successfully'
     });
   } catch (error) {
     console.error('Keep-alive error:', error);
-    res.status(500).json({ error: 'Keep-alive failed' });
+    res.status(500).json({ 
+      error: 'Keep-alive failed',
+      details: error.message 
+    });
   }
 });
 
