@@ -382,6 +382,11 @@ async function handleSignUpNew(event) {
     errorElement.textContent = '❌ Please fill in all required fields';
     return;
   }
+
+  if (!schoolId) {
+    errorElement.textContent = '❌ Please select a school or personal use';
+    return;
+  }
   
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
@@ -423,6 +428,9 @@ async function handleSignUpNew(event) {
       
       // Try to create user profile
       try {
+        const selectedSchoolId = schoolId === 'personal' ? null : schoolId;
+        const selectedTeacherId = schoolId === 'personal' ? null : (teacherId || null);
+
         const { error: profileError } = await window.supabaseClient
           .from('users')
           .insert([
@@ -430,8 +438,8 @@ async function handleSignUpNew(event) {
               id: data.user.id,
               email: email,
               full_name: name,
-              school_id: schoolId || null,
-              teacher_id: teacherId || null,
+              school_id: selectedSchoolId,
+              teacher_id: selectedTeacherId,
               terms_accepted: false,
               created_at: new Date().toISOString(),
             },
@@ -607,7 +615,9 @@ async function loadSchoolsForSignupNew() {
     if (error) throw error;
 
     const schoolSelect = document.getElementById('signUpSchoolNew');
-    schoolSelect.innerHTML = '<option value="">🏫 Select your school</option>';
+    schoolSelect.innerHTML =
+      '<option value="">🏫 Select your school</option>' +
+      '<option value="personal">No school affiliation / Personal use</option>';
 
     if (schools && schools.length > 0) {
       schools.forEach((school) => {
@@ -629,7 +639,7 @@ async function loadTeachersForSchoolNew(schoolId) {
   const teacherSelect = document.getElementById('signUpTeacherNew');
   const teacherGroup = document.getElementById('teacherGroupNew');
   
-  if (!schoolId) {
+  if (!schoolId || schoolId === 'personal') {
     teacherGroup.style.display = 'none';
     teacherSelect.innerHTML = '<option value="">👨‍🏫 Select your teacher</option>';
     return;
@@ -4233,6 +4243,26 @@ checkConnection();
 window.addEventListener("beforeunload", function () {
   stopCurrentSpeech();
   stopAllSounds();
+});
+
+// Keep Supabase active endpoint
+app.get("/api/keep-supabase-active", async (req, res) => {
+  try {
+    // Simple lightweight query to keep database active
+    const { data, error } = await supabase
+      .from('conversations')
+      .select('id')
+      .limit(1);
+    
+    res.json({
+      status: 'active',
+      timestamp: new Date().toISOString(),
+      supabaseActive: !error
+    });
+  } catch (error) {
+    console.error('Keep-alive error:', error);
+    res.status(500).json({ error: 'Keep-alive failed' });
+  }
 });
 
 document.addEventListener("visibilitychange", function () {

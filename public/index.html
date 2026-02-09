@@ -230,13 +230,17 @@
               </div>
 
               <div class="form-group-auth">
-                <label class="form-label-auth">School (Optional)</label>
+                <label class="form-label-auth">School</label>
                 <select
                   id="signUpSchoolNew"
                   class="form-input-auth"
                   onchange="loadTeachersForSchoolNew(this.value)"
+                  required
                 >
                   <option value="">🏫 Select your school</option>
+                  <option value="personal">
+                    No school affiliation / Personal use
+                  </option>
                 </select>
               </div>
 
