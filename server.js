@@ -1416,6 +1416,26 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// Keep Supabase active endpoint
+app.get("/api/keep-supabase-active", async (req, res) => {
+  try {
+    // Simple lightweight query to keep database active
+    const { data, error } = await supabase
+      .from('conversations')
+      .select('id')
+      .limit(1);
+    
+    res.json({
+      status: 'active',
+      timestamp: new Date().toISOString(),
+      supabaseActive: !error
+    });
+  } catch (error) {
+    console.error('Keep-alive error:', error);
+    res.status(500).json({ error: 'Keep-alive failed' });
+  }
+});
+
 // Serve index.html
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));

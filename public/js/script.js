@@ -4245,26 +4245,6 @@ window.addEventListener("beforeunload", function () {
   stopAllSounds();
 });
 
-// Keep Supabase active endpoint
-app.get("/api/keep-supabase-active", async (req, res) => {
-  try {
-    // Simple lightweight query to keep database active
-    const { data, error } = await supabase
-      .from('conversations')
-      .select('id')
-      .limit(1);
-    
-    res.json({
-      status: 'active',
-      timestamp: new Date().toISOString(),
-      supabaseActive: !error
-    });
-  } catch (error) {
-    console.error('Keep-alive error:', error);
-    res.status(500).json({ error: 'Keep-alive failed' });
-  }
-});
-
 document.addEventListener("visibilitychange", function () {
   if (document.hidden) {
     // Optionally pause sounds when tab is hidden
