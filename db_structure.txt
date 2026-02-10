@@ -199,3 +199,201 @@ ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL
 CREATE INDEX IF NOT EXISTS idx_profiles_terms_accepted 
 ON public.profiles(terms_accepted);
 
+-- Create schools table
+CREATE TABLE public.schools (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  school_name TEXT NOT NULL UNIQUE,
+  principal_email TEXT NOT NULL,
+  counselor_email TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create teachers table
+CREATE TABLE public.teachers (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  school_id UUID REFERENCES public.schools(id) ON DELETE CASCADE,
+  teacher_name TEXT NOT NULL,
+  teacher_email TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.teachers ENABLE ROW LEVEL SECURITY;
+
+-- Allow everyone to read schools and teachers (for signup)
+CREATE POLICY "Anyone can view schools"
+  ON public.schools FOR SELECT
+  USING (true);
+
+CREATE POLICY "Anyone can view teachers"
+  ON public.teachers FOR SELECT
+  USING (true);
+
+-- Add indexes
+CREATE INDEX idx_teachers_school_id ON public.teachers(school_id);
+
+-- Insert 5 sample schools
+INSERT INTO public.schools (school_name, principal_email, counselor_email) VALUES
+('Greenwood Elementary School', 'principal@greenwood.edu', 'counselor@greenwood.edu'),
+('Riverside High School', 'principal@riverside.edu', 'counselor@riverside.edu'),
+('Maple Academy', 'principal@mapleacademy.edu', 'counselor@mapleacademy.edu'),
+('Sunshine Learning Center', 'principal@sunshine.edu', 'counselor@sunshine.edu'),
+('Oak Valley School', 'principal@oakvalley.edu', 'counselor@oakvalley.edu');
+
+-- Insert 5 teachers for each school (25 total)
+-- Greenwood Elementary School
+INSERT INTO public.teachers (school_id, teacher_name, teacher_email)
+SELECT id, 'Ms. Sarah Johnson', 'sarah.johnson@greenwood.edu' FROM public.schools WHERE school_name = 'Greenwood Elementary School'
+UNION ALL
+SELECT id, 'Mr. David Smith', 'david.smith@greenwood.edu' FROM public.schools WHERE school_name = 'Greenwood Elementary School'
+UNION ALL
+SELECT id, 'Mrs. Emily Brown', 'emily.brown@greenwood.edu' FROM public.schools WHERE school_name = 'Greenwood Elementary School'
+UNION ALL
+SELECT id, 'Mr. James Wilson', 'james.wilson@greenwood.edu' FROM public.schools WHERE school_name = 'Greenwood Elementary School'
+UNION ALL
+SELECT id, 'Ms. Lisa Anderson', 'lisa.anderson@greenwood.edu' FROM public.schools WHERE school_name = 'Greenwood Elementary School';
+
+-- Riverside High School
+INSERT INTO public.teachers (school_id, teacher_name, teacher_email)
+SELECT id, 'Dr. Michael Chen', 'michael.chen@riverside.edu' FROM public.schools WHERE school_name = 'Riverside High School'
+UNION ALL
+SELECT id, 'Ms. Jennifer Martinez', 'jennifer.martinez@riverside.edu' FROM public.schools WHERE school_name = 'Riverside High School'
+UNION ALL
+SELECT id, 'Mr. Robert Taylor', 'robert.taylor@riverside.edu' FROM public.schools WHERE school_name = 'Riverside High School'
+UNION ALL
+SELECT id, 'Mrs. Amanda White', 'amanda.white@riverside.edu' FROM public.schools WHERE school_name = 'Riverside High School'
+UNION ALL
+SELECT id, 'Mr. Christopher Lee', 'christopher.lee@riverside.edu' FROM public.schools WHERE school_name = 'Riverside High School';
+
+-- Maple Academy
+INSERT INTO public.teachers (school_id, teacher_name, teacher_email)
+SELECT id, 'Ms. Patricia Garcia', 'patricia.garcia@mapleacademy.edu' FROM public.schools WHERE school_name = 'Maple Academy'
+UNION ALL
+SELECT id, 'Mr. Daniel Rodriguez', 'daniel.rodriguez@mapleacademy.edu' FROM public.schools WHERE school_name = 'Maple Academy'
+UNION ALL
+SELECT id, 'Mrs. Maria Hernandez', 'maria.hernandez@mapleacademy.edu' FROM public.schools WHERE school_name = 'Maple Academy'
+UNION ALL
+SELECT id, 'Mr. Richard Moore', 'richard.moore@mapleacademy.edu' FROM public.schools WHERE school_name = 'Maple Academy'
+UNION ALL
+SELECT id, 'Ms. Linda Jackson', 'linda.jackson@mapleacademy.edu' FROM public.schools WHERE school_name = 'Maple Academy';
+
+-- Sunshine Learning Center
+INSERT INTO public.teachers (school_id, teacher_name, teacher_email)
+SELECT id, 'Dr. Susan Thompson', 'susan.thompson@sunshine.edu' FROM public.schools WHERE school_name = 'Sunshine Learning Center'
+UNION ALL
+SELECT id, 'Mr. Kevin Harris', 'kevin.harris@sunshine.edu' FROM public.schools WHERE school_name = 'Sunshine Learning Center'
+UNION ALL
+SELECT id, 'Mrs. Nancy Clark', 'nancy.clark@sunshine.edu' FROM public.schools WHERE school_name = 'Sunshine Learning Center'
+UNION ALL
+SELECT id, 'Mr. Brian Lewis', 'brian.lewis@sunshine.edu' FROM public.schools WHERE school_name = 'Sunshine Learning Center'
+UNION ALL
+SELECT id, 'Ms. Karen Walker', 'karen.walker@sunshine.edu' FROM public.schools WHERE school_name = 'Sunshine Learning Center';
+
+-- Oak Valley School
+INSERT INTO public.teachers (school_id, teacher_name, teacher_email)
+SELECT id, 'Ms. Jessica Hall', 'jessica.hall@oakvalley.edu' FROM public.schools WHERE school_name = 'Oak Valley School'
+UNION ALL
+SELECT id, 'Mr. Thomas Allen', 'thomas.allen@oakvalley.edu' FROM public.schools WHERE school_name = 'Oak Valley School'
+UNION ALL
+SELECT id, 'Mrs. Barbara Young', 'barbara.young@oakvalley.edu' FROM public.schools WHERE school_name = 'Oak Valley School'
+UNION ALL
+SELECT id, 'Mr. Charles King', 'charles.king@oakvalley.edu' FROM public.schools WHERE school_name = 'Oak Valley School'
+UNION ALL
+SELECT id, 'Ms. Elizabeth Wright', 'elizabeth.wright@oakvalley.edu' FROM public.schools WHERE school_name = 'Oak Valley School';
+
+-- Add school_id and teacher_id to profiles
+ALTER TABLE public.profiles
+ADD COLUMN school_id UUID REFERENCES public.schools(id) DEFAULT NULL,
+ADD COLUMN assigned_teacher_id UUID REFERENCES public.teachers(id) DEFAULT NULL;
+
+-- Set existing users to NULL (as you requested)
+UPDATE public.profiles SET school_id = NULL, assigned_teacher_id = NULL;
+
+-- Create index
+CREATE INDEX idx_profiles_school_id ON public.profiles(school_id);
+CREATE INDEX idx_profiles_teacher_id ON public.profiles(assigned_teacher_id);
+
+-- Table to log all flagged messages
+CREATE TABLE public.safety_alerts (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  flagged_message TEXT NOT NULL,
+  detection_method TEXT NOT NULL, -- 'keyword' or 'ai_analysis'
+  severity_level TEXT NOT NULL, -- 'low', 'medium', 'high'
+  emails_sent_to TEXT[], -- Array of emails notified
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE public.safety_alerts ENABLE ROW LEVEL SECURITY;
+
+-- Only admins can view alerts (you can modify this later)
+CREATE POLICY "Admins can view all alerts"
+  ON public.safety_alerts FOR SELECT
+  USING (true);
+
+CREATE POLICY "System can insert alerts"
+  ON public.safety_alerts FOR INSERT
+  WITH CHECK (true);
+
+-- Create index
+CREATE INDEX idx_safety_alerts_user_id ON public.safety_alerts(user_id);
+CREATE INDEX idx_safety_alerts_created_at ON public.safety_alerts(created_at DESC);
+
+-- Update all principal emails
+UPDATE public.schools
+SET principal_email = 'yugesh.sendelightgifts@gmail.com';
+
+-- Update all counselor emails
+UPDATE public.schools
+SET counselor_email = 'yugesh.kerckhoffs@gmail.com';
+
+-- Update all teacher emails
+UPDATE public.teachers
+SET teacher_email = 'imyugesh.s@gmail.com';
+
+-- Verify the updates
+SELECT 
+  'Schools' as table_name,
+  COUNT(*) as total_rows,
+  COUNT(DISTINCT principal_email) as unique_principal_emails,
+  COUNT(DISTINCT counselor_email) as unique_counselor_emails
+FROM public.schools
+
+UNION ALL
+
+SELECT 
+  'Teachers' as table_name,
+  COUNT(*) as total_rows,
+  COUNT(DISTINCT teacher_email) as unique_teacher_emails,
+  NULL as counselor_count
+FROM public.teachers;
+
+-- Check all school emails
+SELECT 
+  school_name, 
+  principal_email, 
+  counselor_email 
+FROM public.schools
+ORDER BY school_name;
+
+-- Check all teacher emails
+SELECT 
+  s.school_name,
+  t.teacher_name,
+  t.teacher_email
+FROM public.teachers t
+JOIN public.schools s ON t.school_id = s.id
+ORDER BY s.school_name, t.teacher_name;
+
+-- Check if your profile exists
+SELECT * FROM public.profiles 
+WHERE id = '05155f45-2e35-4d8c-9f23-0018604d9262';
+
+-- If it doesn't exist or missing data, update it:
+UPDATE public.profiles
+SET 
+  school_id = (SELECT id FROM public.schools LIMIT 1),
+  assigned_teacher_id = (SELECT id FROM public.teachers LIMIT 1)
+WHERE id = '05155f45-2e35-4d8c-9f23-0018604d9262';

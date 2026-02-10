@@ -482,6 +482,7 @@
     <div id="termsModal" class="auth-modal" style="display: none">
       <div class="terms-content">
         <div class="terms-header">
+          <button class="close-terms-btn" onclick="closeReadOnlyTerms()" style="display: none;" title="Close">×</button>
           <img src="logo.png" alt="App Logo" class="logo" />
           <h2>📜 Terms of Service & Privacy Policy</h2>
           <p class="terms-subtitle">Please read and accept to continue</p>
@@ -1060,7 +1061,7 @@
               <a
                 href="#"
                 onclick="
-                  showTermsModal();
+                  showTermsModalReadOnly();
                   return false;
                 "
                 class="footer-link"
@@ -1070,14 +1071,12 @@
             <div class="footer-section">
               <h4 class="footer-title">Support</h4>
               <a
-                href="#"
-                onclick="scrollToSection('contact')"
+                href="#contact"
                 class="footer-link"
                 >Help Center</a
               >
               <a
-                href="#"
-                onclick="scrollToSection('contact')"
+                href="#contact"
                 class="footer-link"
                 >Report an Issue</a
               >

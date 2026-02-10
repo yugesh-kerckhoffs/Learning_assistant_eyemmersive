@@ -303,7 +303,7 @@ async function handleSignInNew(event) {
       
       // Try to fetch user profile
       const { data: profile, error: profileError } = await window.supabaseClient
-        .from('users')
+        .from('profiles')
         .select('*')
         .eq('id', data.user.id)
         .single();
@@ -316,11 +316,10 @@ async function handleSignInNew(event) {
         // Try to create profile if table exists
         try {
           await window.supabaseClient
-            .from('users')
+            .from('profiles')
             .insert([{
               id: data.user.id,
-              email: data.user.email,
-              full_name: currentUserName,
+              display_name: currentUserName,
               terms_accepted: false,
               created_at: new Date().toISOString(),
             }]);
@@ -329,7 +328,7 @@ async function handleSignInNew(event) {
           console.log('⚠️ Could not create profile, continuing anyway');
         }
       } else {
-        currentUserName = profile.full_name || 'Guest';
+        currentUserName = profile.display_name || 'Guest';
         
         // Check if terms accepted
         if (!profile.terms_accepted) {
@@ -432,14 +431,13 @@ async function handleSignUpNew(event) {
         const selectedTeacherId = schoolId === 'personal' ? null : (teacherId || null);
 
         const { error: profileError } = await window.supabaseClient
-          .from('users')
+          .from('profiles')
           .insert([
             {
               id: data.user.id,
-              email: email,
-              full_name: name,
+              display_name: name,
               school_id: selectedSchoolId,
-              teacher_id: selectedTeacherId,
+              assigned_teacher_id: selectedTeacherId,
               terms_accepted: false,
               created_at: new Date().toISOString(),
             },
@@ -519,6 +517,14 @@ async function handleAdminLoginNew(event) {
     if (response.ok && result.isAdmin) {
       currentUser = { isAdmin: true, email: 'admin@system' };
       currentUserName = 'Admin';
+      userRole = "admin"; // ⭐ ADD THIS LINE
+      sessionToken = "admin-" + Date.now(); // ⭐ ADD THIS LINE
+      
+      // Save to localStorage for persistence on refresh
+      localStorage.setItem("userRole", "admin"); // ⭐ ADD THIS LINE
+      localStorage.setItem("sessionToken", sessionToken); // ⭐ ADD THIS LINE
+      
+      console.log("✅ Admin logged in - role:", userRole); // ⭐ ADD THIS LINE FOR DEBUGGING
       
       // Success - go to main app
       document.getElementById('adminLoginPage').style.display = 'none';
@@ -537,6 +543,55 @@ async function handleAdminLoginNew(event) {
     submitBtn.disabled = false;
     btnText.style.display = 'inline';
     btnLoading.style.display = 'none';
+  }
+}
+
+async function verifyAdminKey() {
+  const secretKey = document.getElementById('adminSecretKeyNew')?.value.trim();
+  
+  if (!secretKey) {
+    showNotification('⚠️ Please enter the admin secret key');
+    return;
+  }
+  
+  try {
+    const response = await fetch('/api/verify-admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secretKey }),
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok && result.isAdmin) {
+      // Set admin as completely separate user (NO DATABASE CONNECTION)
+      currentUser = { isAdmin: true, email: 'admin@system', id: null }; // ⭐ id: null means NO DB
+      currentUserName = 'Admin';
+      userRole = "admin"; // ⭐ SET ROLE
+      sessionToken = "admin-session-" + Date.now(); // ⭐ CREATE TOKEN
+      
+      // Save to localStorage ONLY (NOT database)
+      localStorage.setItem("userRole", "admin");
+      localStorage.setItem("sessionToken", sessionToken);
+      
+      // Clear any previous user data
+      localStorage.removeItem("supabase.auth.token"); // ⭐ Clear Supabase session
+      
+      console.log("✅ Admin logged in (NO DB connection) - role:", userRole);
+      
+      // Success - go to main app
+      document.getElementById('adminLoginPage').style.display = 'none';
+      document.getElementById('mainApp').style.display = 'block';
+      showNotification('✅ Admin access granted! 🎬');
+      
+      // Clear form
+      document.getElementById('adminLoginFormNew').reset();
+    } else {
+      showNotification('❌ Invalid admin secret key');
+    }
+  } catch (error) {
+    console.error('Admin verification error:', error);
+    showNotification('❌ Verification failed. Please try again.');
   }
 }
 
@@ -1649,29 +1704,43 @@ function closeAuthModal() {
 }
 
 async function logout() {
-  // Sign out from Supabase if user is logged in
-  if (currentUser) {
+  console.log("🚪 Logging out...");
+  
+  // Only sign out from Supabase if it's a REGULAR USER (not admin)
+  if (currentUser && currentUser.id && !currentUser.isAdmin && window.supabaseClient) {
+    console.log("🔑 Signing out from Supabase...");
     await window.supabaseClient.auth.signOut();
+  } else if (currentUser && currentUser.isAdmin) {
+    console.log("👤 Logging out admin (no Supabase signout needed)");
   }
 
+  // Clear all session data
   userRole = null;
   sessionToken = null;
   currentUser = null;
   currentUserName = null;
   localStorage.removeItem("userRole");
   localStorage.removeItem("sessionToken");
-  location.reload();
+  localStorage.removeItem("supabase.auth.token");
+  
+  // Show landing page
+  showLandingPage();
+  showNotification("👋 Logged out successfully");
 }
 // ========================================
 // Terms of Service Functions
 // ========================================
 
 async function checkTermsAcceptance() {
+  // Only check for logged-in users (not guests or admins)
   if (userRole !== "user" || !currentUser) {
-    return;
+    console.log("⏭️ Skipping terms check - not a logged-in user");
+    return true; // Return true for guests/admins
   }
 
   try {
+    console.log("🔍 Checking if user accepted terms...");
+    
     // Check database for terms acceptance
     const { data: profile, error } = await window.supabaseClient
       .from("profiles")
@@ -1680,34 +1749,83 @@ async function checkTermsAcceptance() {
       .single();
 
     if (error) {
-      console.error("Error checking terms:", error);
-      return;
+      console.error("❌ Error checking terms:", error);
+      return false;
     }
 
-    // If terms_accepted is NULL or false, show the modal
+    // If terms NOT accepted - ENFORCE
     if (profile.terms_accepted !== true) {
-      console.log("📜 User needs to accept terms");
-      showTermsModal();
+      console.log("🚫 User has NOT accepted terms - enforcing");
+      
+      // Hide the main app
+      hideMainApp();
+      
+      // Show terms modal in ENFORCEMENT mode
+      showTermsModal(false); // false = enforcement mode
+      
+      return false; // Terms not accepted
+    } else {
+      console.log("✅ User has accepted terms");
+      
+      // Show the main app
+      showMainApp();
+      
+      return true; // Terms accepted
     }
   } catch (error) {
-    console.error("Error in checkTermsAcceptance:", error);
+    console.error("❌ Error in checkTermsAcceptance:", error);
+    return false;
   }
 }
 
-function showTermsModal() {
+function showTermsModal(readOnly = false) {
+  console.log(`📜 Showing terms modal - Read-only: ${readOnly}`);
+  
   const termsModal = document.getElementById("termsModal");
   const authModal = document.getElementById("authModal");
+  const closeBtn = termsModal.querySelector(".close-terms-btn");
+  const termsSubtitle = termsModal.querySelector(".terms-subtitle");
 
+  // Hide auth modal if open
   if (authModal) {
     authModal.style.display = "none";
   }
 
-  // Hide main app content until terms accepted
-  const container = document.querySelector(".container");
-  if (container) {
-    container.style.display = "none";
+  if (readOnly) {
+    // READ-ONLY MODE (from footer link)
+    termsModal.classList.add("read-only");
+    
+    // Show close button
+    if (closeBtn) closeBtn.style.display = "flex";
+    
+    // Update subtitle
+    if (termsSubtitle) {
+      termsSubtitle.textContent = "Read our Terms of Service & Privacy Policy";
+    }
+  } else {
+    // ENFORCEMENT MODE (must accept to continue)
+    termsModal.classList.remove("read-only");
+    
+    // Hide close button
+    if (closeBtn) closeBtn.style.display = "none";
+    
+    // Update subtitle
+    if (termsSubtitle) {
+      termsSubtitle.textContent = "Please read and accept to continue";
+    }
+    
+    // Hide main app until terms accepted
+    hideMainApp();
+    
+    // Reset checkbox and button
+    const checkbox = document.getElementById("termsCheckbox");
+    const acceptBtn = document.getElementById("acceptTermsBtn");
+    
+    if (checkbox) checkbox.checked = false;
+    if (acceptBtn) acceptBtn.disabled = true;
   }
 
+  // Show modal with fade-in animation
   termsModal.style.display = "flex";
   termsModal.style.opacity = "0";
 
@@ -1715,25 +1833,33 @@ function showTermsModal() {
     termsModal.style.opacity = "1";
   }, 100);
 
-  document.getElementById("termsCheckbox").checked = false;
-  document.getElementById("acceptTermsBtn").disabled = true;
-
-  const termsContent = document.querySelector(".terms-content");
+  // Scroll to top
+  const termsContent = termsModal.querySelector(".terms-content");
   if (termsContent) {
     termsContent.scrollTop = 0;
   }
 }
 
 function hideTermsModal() {
+  console.log("🔽 Hiding terms modal");
+  
   const termsModal = document.getElementById("termsModal");
+  const closeBtn = termsModal.querySelector(".close-terms-btn");
+  const termsSubtitle = termsModal.querySelector(".terms-subtitle");
+  
+  // Fade out
   termsModal.style.opacity = "0";
+  
   setTimeout(() => {
     termsModal.style.display = "none";
+    termsModal.classList.remove("read-only");
     
-    // Show main app content after accepting
-    const container = document.querySelector(".container");
-    if (container) {
-      container.style.display = "block";
+    // Hide close button
+    if (closeBtn) closeBtn.style.display = "none";
+    
+    // Reset subtitle
+    if (termsSubtitle) {
+      termsSubtitle.textContent = "Please read and accept to continue";
     }
   }, 300);
 }
@@ -1765,6 +1891,8 @@ async function acceptTerms() {
   }
 
   try {
+    console.log("💾 Saving terms acceptance to database...");
+    
     // Save to database
     const { error } = await window.supabaseClient
       .from("profiles")
@@ -1775,37 +1903,48 @@ async function acceptTerms() {
       .eq("id", currentUser.id);
 
     if (error) {
-      console.error("Error saving terms acceptance:", error);
+      console.error("❌ Error saving terms acceptance:", error);
       showNotification("❌ Error saving acceptance. Please try again.");
       return;
     }
 
     console.log("✅ Terms accepted and saved to database");
 
-    hideTermsModal();
+    // Hide terms modal
+    const termsModal = document.getElementById("termsModal");
+    if (termsModal) {
+      termsModal.style.opacity = "0";
+      setTimeout(() => {
+        termsModal.style.display = "none";
+      }, 300);
+    }
+    
+    // SHOW THE MAIN APP NOW
+    document.getElementById('mainApp').style.display = 'block';
+    const container = document.querySelector('.container');
+    if (container) container.style.display = 'block';
+    
     showNotification("✅ Terms accepted! Welcome to the app!");
     
     // Load user's level and progress if available
-    if (window.supabaseClient) {
-      try {
-        const { data: profile } = await window.supabaseClient
-          .from("profiles")
-          .select("user_level, session_start_time")
-          .eq("id", currentUser.id)
-          .single();
+    try {
+      const { data: profile } = await window.supabaseClient
+        .from("profiles")
+        .select("user_level, session_start_time")
+        .eq("id", currentUser.id)
+        .single();
 
-        if (profile && profile.user_level) {
-          userLevel = profile.user_level;
-          sessionStartTime = profile.session_start_time || Date.now();
-          updateLevelDisplay();
-          updateProgressBar();
-        }
-      } catch (err) {
-        console.log("Could not load user progress:", err);
+      if (profile && profile.user_level) {
+        userLevel = profile.user_level;
+        sessionStartTime = profile.session_start_time || Date.now();
+        updateLevelDisplay();
+        updateProgressBar();
       }
+    } catch (err) {
+      console.log("Could not load user progress:", err);
     }
   } catch (error) {
-    console.error("Error accepting terms:", error);
+    console.error("❌ Error accepting terms:", error);
     showNotification("❌ Error saving acceptance. Please try again.");
   }
 }
@@ -1813,21 +1952,79 @@ async function acceptTerms() {
 async function declineTerms() {
   const confirmDecline = confirm(
     "⚠️ You must accept the Terms of Service to use this app.\n\n" +
-    "If you decline, you will be logged out.\n\n" +
+    "If you decline, you will be logged out and returned to the landing page.\n\n" +
     "Are you sure you want to decline?"
   );
 
   if (confirmDecline) {
+    console.log("🚫 User declined terms - logging out");
     showNotification("👋 Terms declined. Logging out...");
 
     setTimeout(async () => {
-      // Just logout - don't delete anything
       await logout();
     }, 1500);
   }
 }
 
 async function checkExistingSession() {
+  // Check for saved admin/guest session FIRST
+  const savedRole = localStorage.getItem("userRole");
+  const savedToken = localStorage.getItem("sessionToken");
+  
+  console.log("🔍 Checking existing session...");
+  console.log("   Saved role:", savedRole);
+  
+  // Handle ADMIN session
+  if (savedRole === "admin" && savedToken) {
+    try {
+      console.log("🔑 Verifying admin session...");
+      
+      const response = await fetch("/api/verify-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: savedRole, sessionToken: savedToken }),
+      });
+
+      const data = await response.json();
+
+if (data.valid) {
+        console.log("✅ Admin session valid");
+        userRole = "admin";
+        sessionToken = savedToken;
+        currentUserName = "Admin";
+        currentUser = { isAdmin: true, email: 'admin@system', id: null }; // ⭐ NO DB
+        
+        // DO NOT check database for admin
+        console.log("✅ Admin restored (NO DB connection)");
+        
+        hideLandingPage();
+        showNotification("✅ Welcome back, Admin!");
+        return;
+      } else {
+        console.log("❌ Admin session invalid - clearing");
+        localStorage.removeItem("userRole");
+        localStorage.removeItem("sessionToken");
+      }
+    } catch (error) {
+      console.error("❌ Admin session verification error:", error);
+      localStorage.removeItem("userRole");
+      localStorage.removeItem("sessionToken");
+    }
+  }
+  
+  // Handle GUEST session
+  if (savedRole === "guest") {
+    console.log("✅ Guest session found");
+    userRole = "guest";
+    sessionToken = null;
+    currentUserName = "Guest";
+    
+    hideLandingPage();
+    showNotification("👤 Welcome back, Guest!");
+    return;
+  }
+  
+  // Handle REGULAR USER session (Supabase)
   if (!window.supabaseClient) {
     console.log("⏳ Waiting for Supabase to initialize...");
     setTimeout(checkExistingSession, 500);
@@ -1835,10 +2032,7 @@ async function checkExistingSession() {
   }
 
   try {
-    const {
-      data: { session },
-      error,
-    } = await window.supabaseClient.auth.getSession();
+    const { data: { session }, error } = await window.supabaseClient.auth.getSession();
 
     if (error) {
       console.error("❌ Session check error:", error);
@@ -1846,14 +2040,15 @@ async function checkExistingSession() {
       return;
     }
 
-        if (session && session.user) {
-      console.log("✅ Active session found:", session.user.email);
+    if (session && session.user) {
+      console.log("✅ Active Supabase session found:", session.user.email);
       currentUser = session.user;
+      userRole = "user";
 
       // Try to fetch user profile
       const { data: profile, error: profileError } =
         await window.supabaseClient
-          .from("users")
+          .from("profiles")
           .select("*")
           .eq("id", session.user.id)
           .single();
@@ -1869,7 +2064,7 @@ async function checkExistingSession() {
         return;
       }
       
-      currentUserName = profile.full_name || "Guest";
+      currentUserName = profile.display_name || "Guest";
       console.log("👤 User profile loaded:", currentUserName);
 
       // Check if terms accepted
@@ -2466,6 +2661,8 @@ async function sendMessage() {
         conversationHistory: conversationHistory,
         role: userRole,
         sessionToken: sessionToken,
+        userId: currentUser ? currentUser.id : null,
+        userEmail: currentUser ? currentUser.email : null,
         userId: currentUser ? currentUser.id : null,
         userEmail: currentUser ? currentUser.email : null,
       }),
@@ -4196,6 +4393,121 @@ function exitMemoryGameModeQuietly() {
         </div>
     `;
 }
+
+// ========================================
+// TERMS & SERVICE ENFORCEMENT SYSTEM
+// ========================================
+
+// Hide main app (prevent access until terms accepted)
+function hideMainApp() {
+  const container = document.querySelector(".container");
+  const landingPage = document.getElementById("landingPage");
+  
+  console.log("🔒 Hiding main app - terms not accepted");
+  
+  if (container) container.style.display = "none";
+  if (landingPage) landingPage.style.display = "none";
+}
+
+// Show main app (allow access after terms accepted)
+function showMainApp() {
+  const container = document.querySelector(".container");
+  const landingPage = document.getElementById("landingPage");
+  
+  console.log("✅ Showing main app - terms accepted");
+  
+  // Show appropriate page based on user state
+  if (currentUser && userRole === "user") {
+    if (container) container.style.display = "block";
+    if (landingPage) landingPage.style.display = "none";
+  } else if (userRole === "guest") {
+    if (container) container.style.display = "block";
+    if (landingPage) landingPage.style.display = "none";
+  } else {
+    if (container) container.style.display = "none";
+    if (landingPage) landingPage.style.display = "block";
+  }
+}
+
+// Show terms modal in READ-ONLY mode (for footer link)
+function showTermsModalReadOnly() {
+  console.log("📖 Opening terms in read-only mode");
+  
+  const termsModal = document.getElementById("termsModal");
+  
+  if (!termsModal) {
+    console.error("❌ Terms modal not found!");
+    return;
+  }
+  
+  const closeBtn = termsModal.querySelector(".close-terms-btn");
+  const termsSubtitle = termsModal.querySelector(".terms-subtitle");
+  
+  // Add read-only class
+  termsModal.classList.add("read-only");
+  
+  // FORCE modal to be on top
+  termsModal.style.position = "fixed";
+  termsModal.style.top = "0";
+  termsModal.style.left = "0";
+  termsModal.style.width = "100%";
+  termsModal.style.height = "100%";
+  termsModal.style.zIndex = "999999";
+  
+  // Show close button
+  if (closeBtn) {
+    closeBtn.style.display = "flex";
+  }
+  
+  // Update subtitle for read-only mode
+  if (termsSubtitle) {
+    termsSubtitle.textContent = "Read our Terms of Service & Privacy Policy";
+  }
+  
+  // Show modal with animation
+  termsModal.style.display = "flex";
+  termsModal.style.opacity = "0";
+  
+  console.log("✅ Terms modal should now be visible");
+  
+  setTimeout(() => {
+    termsModal.style.opacity = "1";
+  }, 100);
+  
+  // Scroll to top
+  const termsContent = termsModal.querySelector(".terms-content");
+  if (termsContent) {
+    termsContent.scrollTop = 0;
+  }
+}
+
+// Close read-only terms modal
+function closeReadOnlyTerms() {
+  console.log("❌ Closing read-only terms modal");
+  
+  const termsModal = document.getElementById("termsModal");
+  const closeBtn = termsModal.querySelector(".close-terms-btn");
+  const termsSubtitle = termsModal.querySelector(".terms-subtitle");
+  
+  // Fade out animation
+  termsModal.style.opacity = "0";
+  
+  setTimeout(() => {
+    termsModal.style.display = "none";
+    termsModal.classList.remove("read-only");
+    
+    // Hide close button
+    if (closeBtn) {
+      closeBtn.style.display = "none";
+    }
+    
+    // Reset subtitle to original
+    if (termsSubtitle) {
+      termsSubtitle.textContent = "Please read and accept to continue";
+    }
+  }, 300);
+}
+
 
 document.addEventListener("DOMContentLoaded", function () {
   document.getElementById("messageInput").focus();

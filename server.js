@@ -1,10 +1,11 @@
-// server.js - UPDATED VERSION
+// server.js - FIXED VERSION WITH NEW GOOGLE GENAI SDK
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const fs = require("fs");
 require("dotenv").config();
-const { GoogleGenerativeAI } = require("@google/genai");
+// ⭐ CHANGED: Use GoogleGenAI instead of GoogleGenerativeAI
+const { GoogleGenAI } = require("@google/genai");
 const crypto = require("crypto");
 const { Resend } = require("resend");
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -140,7 +141,7 @@ function getSocialStoriesPrompt() {
 // --- Google Gemini API ---
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_TEXT_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
-const GEMINI_IMAGE_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_IMAGE_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${GEMINI_API_KEY}`;
 const GEMINI_BASE_URL = `https://generativelanguage.googleapis.com/v1beta`;
 // --- Supabase Configuration ---
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -577,21 +578,27 @@ Make it:
 Style: Animated illustration, cartoon style, bright colors, child-friendly, smooth motion`;
 }
 
+// ⭐⭐⭐ FIXED VIDEO GENERATION FUNCTION - USING NEW GOOGLE GENAI SDK ⭐⭐⭐
 async function generateVideo(prompt) {
   try {
     const childFriendlyPrompt = createChildFriendlyVideoPrompt(prompt);
 
-    console.log("Starting video generation with Veo 2.0...");
+    console.log("Starting video generation with Veo 3.1...");
 
-    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+    // ⭐ CHANGED: Initialize Google GenAI client with NEW SDK
+    const ai = new GoogleGenAI({
+      apiKey: GEMINI_API_KEY,
+    });
 
-    // Start video generation operation
+    // ⭐ CHANGED: Use new model name veo-3.1-generate-preview
+    console.log("Sending video generation request...");
     let operation = await ai.models.generateVideos({
-      model: "veo-2.0-generate-001",
+      model: "veo-3.1-generate-preview",
       prompt: childFriendlyPrompt,
     });
 
     console.log("Video generation initiated, polling for completion...");
+    console.log("Operation name:", operation.name);
 
     // Poll the operation status until the video is ready
     const maxAttempts = 36; // 36 attempts * 10 seconds = 6 minutes
@@ -606,14 +613,16 @@ async function generateVideo(prompt) {
       await new Promise((resolve) => setTimeout(resolve, 10000)); // Wait 10 seconds
       attempts++;
 
-      // Get updated operation status
+      // ⭐ CHANGED: Get updated operation status using NEW SDK method
       operation = await ai.operations.getVideosOperation({
         operation: operation,
       });
+
+      console.log(`Operation status: ${operation.done ? "Done" : "In progress"}`);
     }
 
     if (!operation.done) {
-      console.error("Video generation timed out");
+      console.error("Video generation timed out after", maxAttempts * 10, "seconds");
       return {
         success: false,
         timeout: true,
@@ -621,7 +630,7 @@ async function generateVideo(prompt) {
     }
 
     if (operation.error) {
-      console.error("Video generation failed:", operation.error);
+      console.error("Video generation failed with error:", operation.error);
       return null;
     }
 
@@ -632,53 +641,65 @@ async function generateVideo(prompt) {
       operation.response.generatedVideos[0]
     ) {
       const generatedVideo = operation.response.generatedVideos[0];
-      console.log("Video generated successfully, downloading...");
+      console.log("Video generated successfully!");
 
-      // Get video file URI and download it with API key
+      // Get video file object
       const videoFile = generatedVideo.video;
-      console.log("Video file info:", videoFile);
+      console.log("Video file details:", {
+        name: videoFile.name,
+        mimeType: videoFile.mimeType,
+        uri: videoFile.uri ? "present" : "missing",
+      });
 
-      // Extract file name from URI
-      const videoUri = videoFile.uri;
-      if (!videoUri) {
-        console.error("No video URI found:", videoFile);
+      // ⭐ CHANGED: Download the video using NEW SDK method
+      console.log("Downloading video...");
+      
+      // Create a temporary file path for download
+      const tempFilePath = path.join(__dirname, `temp_video_${Date.now()}.mp4`);
+      
+      try {
+        // ⭐ CHANGED: Use the SDK's download method
+        await ai.files.download({
+          file: videoFile,
+          downloadPath: tempFilePath,
+        });
+
+        console.log("Video downloaded to temp file:", tempFilePath);
+
+        // Read the downloaded file as base64
+        const videoBuffer = fs.readFileSync(tempFilePath);
+        const videoBase64 = videoBuffer.toString("base64");
+
+        console.log("Video converted to base64, size:", videoBuffer.length, "bytes");
+
+        // Delete the temporary file
+        fs.unlinkSync(tempFilePath);
+        console.log("Temporary file deleted");
+
+        return {
+          success: true,
+          videoData: videoBase64,
+          mimeType: videoFile.mimeType || "video/mp4",
+        };
+      } catch (downloadError) {
+        console.error("Error downloading video file:", downloadError);
+        
+        // Clean up temp file if it exists
+        if (fs.existsSync(tempFilePath)) {
+          fs.unlinkSync(tempFilePath);
+        }
+        
         return null;
       }
-
-      // Add API key to the download URL
-      const downloadUrl = `${videoUri}&key=${GEMINI_API_KEY}`;
-
-      const videoResponse = await fetch(downloadUrl);
-      if (!videoResponse.ok) {
-        console.error(
-          "Failed to download video:",
-          videoResponse.status,
-          await videoResponse.text()
-        );
-        return null;
-      }
-
-      const videoBuffer = await videoResponse.arrayBuffer();
-      const videoBase64 = Buffer.from(videoBuffer).toString("base64");
-
-      console.log(
-        "Video downloaded successfully, size:",
-        videoBuffer.byteLength,
-        "bytes"
-      );
-
-      return {
-        success: true,
-        videoData: videoBase64,
-        mimeType: "video/mp4",
-      };
     }
 
-    console.error("No video data found in response");
+    console.error("No video data found in operation response");
     return null;
   } catch (error) {
     console.error("Video generation error:", error);
-    console.error("Error details:", error.message);
+    console.error("Error name:", error.name);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
 
     return null;
   }
@@ -726,7 +747,7 @@ Each panel shows you what to do, step by step. You can look at the pictures and 
           return res.json({
             response: imageResponse,
             character: "📚",
-            model: "gemini-2.5-flash-image-preview",
+            model: "gemini-2.5-flash-image",
             imageGenerated: true,
             imageData: imageResult.imageData,
             mimeType: imageResult.mimeType,
@@ -743,7 +764,7 @@ Or you can try asking for another social story topic! 🌟`;
           return res.json({
             response: fallbackResponse,
             character: "📚",
-            model: "gemini-2.5-flash-image-preview",
+            model: "gemini-2.5-flash-image",
             imageGenerated: false,
           });
         }
@@ -773,7 +794,7 @@ I hope you like it! 😊 What do you think about the image? Would you like me to
           return res.json({
             response: imageResponse,
             character: "🎨",
-            model: "gemini-2.5-flash-image-preview",
+            model: "gemini-2.5-flash-image",
             imageGenerated: true,
             imageData: imageResult.imageData,
             mimeType: imageResult.mimeType,
@@ -810,7 +831,7 @@ I hope you like it! 😊 What do you think about the video? Would you like me to
           return res.json({
             response: videoResponse,
             character: "🎬",
-            model: "veo-3.1-fast-generate-preview",
+            model: "veo-3.1-generate-preview",
             videoGenerated: true,
             videoData: videoResult.videoData,
             mimeType: videoResult.mimeType,
@@ -830,7 +851,7 @@ What would you prefer? 😊`;
           return res.json({
             response: timeoutResponse,
             character: "⏱️",
-            model: "veo-3.1-fast-generate-preview",
+            model: "veo-3.1-generate-preview",
             videoGenerated: false,
           });
         } else {
@@ -849,7 +870,7 @@ I can paint it with words so you can imagine it perfectly! ✨`;
           return res.json({
             response: fallbackResponse,
             character: "🎬",
-            model: "veo-3.1-fast-generate-preview",
+            model: "veo-3.1-generate-preview",
             videoGenerated: false,
           });
         }
@@ -1050,38 +1071,6 @@ Respond with deep empathy, validation, and clear guidance on getting help from t
     ];
 
     const geminiContents = convertToGeminiFormat(messages);
-
-    // Test function to check Veo API access
-    async function testVeoAccess() {
-      try {
-        const testUrl = `${GEMINI_BASE_URL}/models?key=${GEMINI_API_KEY}`;
-        const response = await fetch(testUrl);
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log("\n=== Available Models ===");
-          const veoModels =
-            data.models?.filter((m) => m.name.includes("veo")) || [];
-
-          if (veoModels.length > 0) {
-            console.log("âœ… Veo API Access: ENABLED");
-            veoModels.forEach((model) => {
-              console.log(`  - ${model.name}`);
-            });
-          } else {
-            console.log("âŒ Veo API Access: NOT AVAILABLE");
-            console.log(
-              "Available models:",
-              data.models?.map((m) => m.name).join(", ")
-            );
-          }
-        } else {
-          console.log("âŒ Cannot check API access:", response.status);
-        }
-      } catch (error) {
-        console.log("âŒ Error checking API access:", error.message);
-      }
-    }
 
     // Helper function for retry with exponential backoff
     async function callGeminiWithRetry(maxRetries = 3) {
@@ -1411,8 +1400,8 @@ app.get("/api/health", (req, res) => {
     systemPromptLoaded: systemPrompt.length > 0,
     socialStoriesPromptLoaded: socialStoriesPrompt.length > 0,
     model: "gemini-2.0-flash",
-    imageModel: "gemini-2.5-flash-image-preview",
-    videoModel: "veo-3.1-fast-generate-preview",
+    imageModel: "gemini-2.5-flash-image",
+    videoModel: "veo-3.1-generate-preview",
   });
 });
 
@@ -1455,13 +1444,10 @@ if (require.main === module) {
       `🔑 Gemini API Key: ${GEMINI_API_KEY ? "Configured" : "Missing"}`
     );
     console.log(
-      `🎨 Image generation: Enabled (gemini-2.5-flash-image-preview)`
+      `🎨 Image generation: Enabled (gemini-2.5-flash-image)`
     );
-    console.log(`🎬 Video generation: Enabled (veo-3.1-fast-generate-preview)`);
+    console.log(`🎬 Video generation: Enabled (veo-3.1-generate-preview)`);
     console.log(`🌐 Visit: http://localhost:${PORT}`);
-
-    // Test Veo API access
-    //testVeoAccess();
   });
 }
 

@@ -230,6 +230,55 @@ body {
   display: none;
 }
 
+/* Terms modal MUST be above everything */
+#termsModal {
+  z-index: 999999 !important;
+}
+
+/* Close button for read-only mode */
+.close-terms-btn {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f44336, #d32f2f);
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  color: white;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  z-index: 100;
+  box-shadow: 0 4px 15px rgba(244, 67, 54, 0.5);
+  line-height: 1;
+  padding: 0;
+}
+
+.close-terms-btn:hover {
+  background: linear-gradient(135deg, #d32f2f, #f44336);
+  transform: rotate(90deg) scale(1.15);
+  box-shadow: 0 6px 20px rgba(244, 67, 54, 0.7);
+}
+
+.close-terms-btn:active {
+  transform: rotate(90deg) scale(1.05);
+}
+
+/* Read-only mode - hide accept/decline buttons */
+#termsModal.read-only .terms-actions {
+  display: none !important;
+}
+
+/* Read-only mode - show close button */
+#termsModal.read-only .close-terms-btn {
+  display: flex !important;
+}
+
 /* Ensure reset modal appears above everything */
 #resetPasswordModal {
   z-index: 10001;
@@ -892,6 +941,51 @@ select.secret-key-input option:first-child {
   background: linear-gradient(135deg, #d32f2f, #f44336);
   transform: translateY(-3px);
   box-shadow: 0 8px 20px rgba(244, 67, 54, 0.4);
+}
+
+/* Terms Modal Z-Index Management */
+#termsModal {
+  z-index: 10000 !important;
+}
+
+#termsReadOnlyModal {
+  z-index: 10000 !important;
+}
+
+/* Close Button for Read-Only Terms Modal */
+.terms-close-btn {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.5em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  z-index: 10;
+  line-height: 1;
+  padding: 0;
+}
+
+.terms-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: rotate(90deg);
+  border-color: #ff6b6b;
+}
+
+.terms-close-btn:active {
+  transform: rotate(90deg) scale(0.9);
+}
+
+.terms-header {
+  position: relative;
 }
 
 /* Mobile Responsive */
