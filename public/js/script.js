@@ -413,10 +413,15 @@ async function handleSignUpNew(event) {
       throw new Error('Supabase not initialized');
     }
     
-    // Sign up user
+    // Sign up user with metadata
     const { data, error } = await window.supabaseClient.auth.signUp({
       email: email,
       password: password,
+      options: {
+        data: {
+          display_name: name  // ⭐ PASS NAME TO METADATA
+        }
+      }
     });
     
     if (error) throw error;
@@ -454,9 +459,22 @@ async function handleSignUpNew(event) {
       // Check if terms modal exists
       const termsModal = document.getElementById('termsModal');
       if (termsModal) {
-        // Show terms modal
-        termsModal.style.display = 'flex';
+        // HIDE EVERYTHING ELSE
         document.getElementById('signUpPage').style.display = 'none';
+        const landingPage = document.getElementById('landingPage');
+        if (landingPage) landingPage.style.display = 'none';
+        document.getElementById('mainApp').style.display = 'none';
+        
+        // FORCE TERMS MODAL TO TOP
+        termsModal.style.position = 'fixed';
+        termsModal.style.top = '0';
+        termsModal.style.left = '0';
+        termsModal.style.width = '100%';
+        termsModal.style.height = '100%';
+        termsModal.style.zIndex = '999999';
+        termsModal.style.display = 'flex';
+        
+        console.log('✅ Terms modal shown after signup');
         showNotification('✅ Account created! Please accept the terms to continue.');
       } else {
         // No terms modal, go directly to app
@@ -514,26 +532,41 @@ async function handleAdminLoginNew(event) {
     
     const result = await response.json();
     
-    if (response.ok && result.isAdmin) {
-      currentUser = { isAdmin: true, email: 'admin@system' };
+if (response.ok && result.isAdmin) {
+      // CLEAR ALL PREVIOUS USER DATA
+      conversationHistory = [];  // ⭐ CLEAR CHAT HISTORY
+      const chatMessages = document.getElementById('chatMessages');
+      if (chatMessages) {
+        chatMessages.innerHTML = '';  // ⭐ CLEAR CHAT UI
+      }
+      
+      // Set admin user
+      currentUser = { isAdmin: true, email: 'admin@system', id: null };  // ⭐ id: null = no DB
       currentUserName = 'Admin';
-      userRole = "admin"; // ⭐ ADD THIS LINE
-      sessionToken = "admin-" + Date.now(); // ⭐ ADD THIS LINE
+      userRole = "admin";
+      sessionToken = "admin-" + Date.now();
       
       // Save to localStorage for persistence on refresh
-      localStorage.setItem("userRole", "admin"); // ⭐ ADD THIS LINE
-      localStorage.setItem("sessionToken", sessionToken); // ⭐ ADD THIS LINE
+      localStorage.setItem("userRole", "admin");
+      localStorage.setItem("sessionToken", sessionToken);
       
-      console.log("✅ Admin logged in - role:", userRole); // ⭐ ADD THIS LINE FOR DEBUGGING
+      // Clear any Supabase session
+      if (window.supabaseClient) {
+        await window.supabaseClient.auth.signOut();  // ⭐ SIGN OUT FROM SUPABASE
+      }
+      
+      console.log("✅ Admin logged in (fresh session) - role:", userRole);
       
       // Success - go to main app
       document.getElementById('adminLoginPage').style.display = 'none';
       document.getElementById('mainApp').style.display = 'block';
-      showNotification('✅ Admin access granted! 🎬');
+      
+      // Show fresh welcome message
+      showNotification('✅ Admin access granted! Fresh chat session started. 🎬');
       
       // Clear form
       document.getElementById('adminLoginFormNew').reset();
-    } else {
+    }else {
       errorElement.textContent = '❌ Invalid admin secret key';
     }
   } catch (error) {
@@ -4436,27 +4469,36 @@ function showTermsModalReadOnly() {
   const termsModal = document.getElementById("termsModal");
   
   if (!termsModal) {
-    console.error("❌ Terms modal not found!");
+    console.error("❌ Terms modal element not found!");
     return;
   }
   
   const closeBtn = termsModal.querySelector(".close-terms-btn");
   const termsSubtitle = termsModal.querySelector(".terms-subtitle");
   
+  // HIDE LANDING PAGE FIRST
+  const landingPage = document.getElementById("landingPage");
+  if (landingPage) {
+    landingPage.style.zIndex = "1";
+  }
+  
   // Add read-only class
   termsModal.classList.add("read-only");
   
-  // FORCE modal to be on top
+  // FORCE modal to be on top with all properties
   termsModal.style.position = "fixed";
   termsModal.style.top = "0";
   termsModal.style.left = "0";
   termsModal.style.width = "100%";
   termsModal.style.height = "100%";
   termsModal.style.zIndex = "999999";
+  termsModal.style.background = "rgba(0, 0, 0, 0.85)";
   
   // Show close button
   if (closeBtn) {
     closeBtn.style.display = "flex";
+  } else {
+    console.warn("⚠️ Close button not found in terms modal");
   }
   
   // Update subtitle for read-only mode
@@ -4464,14 +4506,18 @@ function showTermsModalReadOnly() {
     termsSubtitle.textContent = "Read our Terms of Service & Privacy Policy";
   }
   
-  // Show modal with animation
-  termsModal.style.display = "flex";
+  // Show modal with animation (OVERRIDE CSS !important)
+  termsModal.style.setProperty('display', 'flex', 'important');
   termsModal.style.opacity = "0";
   
-  console.log("✅ Terms modal should now be visible");
+  console.log("✅ Terms modal forced to display - checking visibility...");
+  console.log("   Modal zIndex:", termsModal.style.zIndex);
+  console.log("   Modal display:", termsModal.style.display);
+  console.log("   Modal position:", termsModal.style.position);
   
   setTimeout(() => {
     termsModal.style.opacity = "1";
+    console.log("✅ Terms modal opacity set to 1");
   }, 100);
   
   // Scroll to top

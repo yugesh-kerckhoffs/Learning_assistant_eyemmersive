@@ -232,7 +232,16 @@ body {
 
 /* Terms modal MUST be above everything */
 #termsModal {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
   z-index: 999999 !important;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
 }
 
 /* Close button for read-only mode */
@@ -944,9 +953,6 @@ select.secret-key-input option:first-child {
 }
 
 /* Terms Modal Z-Index Management */
-#termsModal {
-  z-index: 10000 !important;
-}
 
 #termsReadOnlyModal {
   z-index: 10000 !important;
@@ -3434,9 +3440,4 @@ select.form-input-auth option {
     gap: 15px;
     align-items: flex-start;
   }
-}
-
-/* Remove old auth modal styles conflict */
-.auth-modal {
-  display: none !important;
 }
