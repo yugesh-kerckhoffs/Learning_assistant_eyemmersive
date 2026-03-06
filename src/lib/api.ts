@@ -64,3 +64,27 @@ export async function apiCheckEmailExists(email: string) {
   });
   return response.json();
 }
+
+export async function apiToggleMaintenance(secretKey: string, enabled: boolean) {
+  const response = await fetch(`${getBaseUrl()}/toggle-maintenance`, {
+    method: 'POST',
+    headers: getAuthHeader(),
+    body: JSON.stringify({ secretKey, enabled }),
+  });
+  return response.json();
+}
+
+export async function apiCheckMaintenance(): Promise<boolean> {
+  try {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/app_settings?key=eq.maintenance_mode&select=value`,
+      { headers: { 'apikey': anonKey, 'Authorization': `Bearer ${anonKey}` } }
+    );
+    const data = await res.json();
+    return data?.[0]?.value === true;
+  } catch {
+    return false;
+  }
+}

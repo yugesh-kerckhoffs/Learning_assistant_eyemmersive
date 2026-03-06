@@ -3,9 +3,11 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import twemoji from 'twemoji';
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { apiCheckMaintenance } from "./lib/api";
+import MaintenancePage from "./pages/MaintenancePage";
 import { AppProvider } from "./contexts/AppContext";
 import LandingPage from "./pages/LandingPage";
 import SignInPage from "./pages/SignInPage";
@@ -90,40 +92,66 @@ function TwemojiParser() {
   return null;
 }
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <AppProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <TwemojiParser />
-          <BrowserRouter>
-            <RecoveryRedirect />
-            <Routes>
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/signin" element={<SignInPage />} />
-              <Route path="/signup" element={<SignUpPage />} />
-              <Route path="/admin" element={<AdminLoginPage />} />
-              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-              <Route path="/reset-password" element={<ResetPasswordPage />} />
-              <Route path="/app" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-                <Route index element={<Navigate to="/app/chat" replace />} />
-                <Route path="chat" element={<ChatPage />} />
-                <Route path="gallery" element={<GalleryPage />} />
-                <Route path="calm-breathing" element={<CalmBreathingPage />} />
-                <Route path="feelings" element={<FeelingsHelperPage />} />
-                <Route path="memory-game" element={<MemoryGamePage />} />
-                <Route path="colors-shapes" element={<ColorsShapesPage />} />
-                <Route path="social-stories" element={<SocialStoriesPage />} />
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </AppProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  const [isMaintenance, setIsMaintenance] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    apiCheckMaintenance().then(setIsMaintenance);
+    // Re-check every 30 seconds
+    const interval = setInterval(() => {
+      apiCheckMaintenance().then(setIsMaintenance);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Still loading
+  if (isMaintenance === null) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: 'linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)', color: '#fff' }}>
+        Loading...
+      </div>
+    );
+  }
+
+  if (isMaintenance) {
+    return <MaintenancePage />;
+  }
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <AppProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <TwemojiParser />
+            <BrowserRouter>
+              <RecoveryRedirect />
+              <Routes>
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/signin" element={<SignInPage />} />
+                <Route path="/signup" element={<SignUpPage />} />
+                <Route path="/admin" element={<AdminLoginPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/app" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+                  <Route index element={<Navigate to="/app/chat" replace />} />
+                  <Route path="chat" element={<ChatPage />} />
+                  <Route path="gallery" element={<GalleryPage />} />
+                  <Route path="calm-breathing" element={<CalmBreathingPage />} />
+                  <Route path="feelings" element={<FeelingsHelperPage />} />
+                  <Route path="memory-game" element={<MemoryGamePage />} />
+                  <Route path="colors-shapes" element={<ColorsShapesPage />} />
+                  <Route path="social-stories" element={<SocialStoriesPage />} />
+                </Route>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TooltipProvider>
+        </AppProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
